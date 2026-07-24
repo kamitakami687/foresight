@@ -1,0 +1,45 @@
+{
+  "name": "polypredict",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "vite",
+    "server": "tsx watch server/index.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "@circle-fin/adapter-viem-v2": "^1.14.0",
+    "@circle-fin/app-kit": "^1.10.0",
+    "@circle-fin/developer-controlled-wallets": "^10.8.0",
+    "@circle-fin/x402-batching": "^3.2.0",
+    "@tanstack/react-query": "^5.101.2",
+    "@x402/core": "^2.18.0",
+    "@x402/evm": "^2.18.0",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "viem": "^2.55.2",
+    "wagmi": "^3.7.1"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.1.1",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.3",
+    "tsx": "^4.23.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.1.5"
+  },
+  "allowScripts": {
+    "esbuild@0.28.1": true
+  }
+}

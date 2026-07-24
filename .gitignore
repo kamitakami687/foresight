@@ -1,0 +1,5 @@
+node_modules
+.env
+dist
+_test-*.ts
+_debug-*.ts
