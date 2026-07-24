@@ -2,13 +2,19 @@
 
 PolyPredict is a live Polymarket prediction app that currently supports 5 minute, 15 minute, 1 hour, and 4 hour predictions for BTC and ETH.
 
-To get a prediction, you first deposit USDC to your Gateway balance. Then you just paste a Polymarket link, choose a timeframe, or type in a question like *"will Bitcoin be up or down in the next hour?"* You pay $0.01, and an AI agent looks at real market data to give you a live prediction with its reasoning.
+To get a prediction, you first deposit USDC to your Gateway balance. Then you just paste a Polymarket link, choose a timeframe, or type in a question like *"Bitcoin/Ethereum be up or down?"* You pay $0.01, and an AI agent looks at real market data to give you a live prediction with its reasoning.
 
-Once the market resolves, the Validator agent checks whether the prediction was right. If it was wrong, you automatically get 90% of your money back (0.009 USDC). Every single prediction the Validator checks gets its own permanent log entry onchain, submitted by a separate Reporter wallet — both a correct call and a wrong call get recorded, each as a real transaction on Arc Testnet's ReputationRegistry contract.
+Once the market resolves, the Validator checks if the prediction was right. Wrong predictions get 90% refunded automatically. Every result is logged permanently on-chain by the Reporter wallet — the track record is public, not just claimed.
 
-PolyPredict runs on Arc using USDC, with instant, gas-free payments through Circle's Nanopayments. The agent pulls live price data from Binance candlestick lines and Polymarket's own order book for real-time price and sentiment analysis. More supported assets are planned.
+PolyPredict uses Binance klines as the primary price source, since it updates every minute with no API key needed. Polymarket's own CLOB midpoint as a new signal, since it shows what the market itself is pricing the outcome at right now, which lets the app show when its own prediction agrees or disagrees with the crowd.
 
-The Validator's onchain identity and every feedback event it has received are independently verifiable on [Arc Testnet's explorer](https://testnet.arcscan.app) — this isn't something you have to take PolyPredict's word for.
+PolyPredict runs on Arc using USDC, with instant, gas-free payments through Circle's Nanopayments. PolyPredict combines two live signals: Binance's minute-by-minute price data for real market momentum, and Polymarket's own CLOB midpoint for what the crowd is actually pricing. That pairing lets the app show, transparently, when its own call agrees with the market and when it's taking a different view.
+
+The agent pulls live price data from Binance candlestick lines and Polymarket's own order book for real-time price and sentiment analysis. 
+
+More supported assets are planned.
+
+The Validator's onchain identity and every feedback event it has received are independently verifiable on [Arc Testnet's explorer](https://testnet.arcscan.app) so this isn't something you have to take PolyPredict's word for.
 
 ---
 
