@@ -1,6 +1,6 @@
 # PolyPredict
 
-PolyPredict is a live Polymarket prediction app supporting 5-minute, 15-minute, 1-hour, and 4-hour predictions for BTC and ETH.
+PolyPredict is a live Polymarket prediction app on Arc supporting 5-minute, 15-minute, 1-hour, and 4-hour predictions for BTC and ETH.
 
 To get a prediction, you first deposit USDC to your Gateway balance. Then paste a Polymarket link, choose a timeframe, or ask a question like "will Bitcoin be up or down in the next hour?" You pay $0.01, and an AI agent looks at real market data to give you a prediction along with its reasoning.
 
