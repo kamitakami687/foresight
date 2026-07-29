@@ -85,12 +85,12 @@ Validator and Reporter are created as SCA wallets, matching Circle's own ERC-800
 
 - Node.js / TypeScript, Express (backend)
 - React + Vite, Wagmi + viem (frontend, wallet connection)
-- `@circle-fin/x402-batching` — Circle's Nanopayments (gasless x402 payments on Arc)
-- `@circle-fin/developer-controlled-wallets` — Escrow, Validator, and Reporter wallets
-- Binance public klines API — real-time price momentum and volatility signals
-- Polymarket Gamma API + CLOB — market data and crowd-priced odds (`marketImpliedProbability`)
+- @circle-fin/x402-batching, Circle's Nanopayments (gasless x402 payments on Arc)
+- @circle-fin/developer-controlled-wallets — Escrow, Validator, and Reporter wallets
+- Binance public klines API for real-time price momentum and volatility signals
+- Polymarket Gamma API + CLOB — market data and crowd-priced odds 
 - OpenAI — generates the plain-language rationale behind each prediction
-- ERC-8004 (`IdentityRegistry`, `ReputationRegistry`) on Arc Testnet — the Validator's onchain identity and track record
+- ERC-8004 on Arc Testnet - the Validator's onchain identity and track record
 
 ## Setup
 
