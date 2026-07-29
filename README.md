@@ -22,21 +22,21 @@ The Validator's onchain identity and every feedback event it has received are in
 
 PolyPredict has five wallets, each with one clear job.
 
-- **Client** is a stand-in for a regular visitor, used for testing.
+- **Client** is a browser wallet (Metamask, Rabby) for a regular visitor, used for testing.
 - **Seller** is where the $0.01 payment first lands when someone pays for a prediction.
 - **Escrow** is where that money actually ends up living — it either keeps the $0.01 if the prediction was right, or sends 90% of it back if the prediction was wrong.
-- **Validator** is the AI agent's on-chain identity — like a name tag proving the agent is a real, trackable thing, not invisible code.
+- **Validator** is the AI agent's on-chain identity, a name tag proving the agent is a real, trackable thing, not invisible code.
 - **Reporter** is a separate wallet that writes down, permanently, whether each prediction the Validator checked was correct or wrong, so anyone can look up its real track record.
-
+  
 ### Technical breakdown
 
-| Wallet | Env variable | Type | Purpose |
+| Wallet | Env variable | Type | What it does |
 |---|---|---|---|
-| Client | `CLIENT_WALLET_ADDRESS` | Whatever wallet the visitor brings | Represents a test visitor/payer |
-| Seller | `X402_SELLER_ADDRESS` / `X402_SELLER_PRIVATE_KEY` | Self-custodied (viem-generated) | Configured as `sellerAddress` in `createGatewayMiddleware()`; receives x402 Nanopayments into its Gateway balance |
-| Escrow | `ESCROW_WALLET_ADDRESS` | Circle-managed dev-controlled | Receives swept funds as real on-chain USDC (via App Kit's Forwarding Service); source of refund transactions via `createTransaction()` |
-| Validator | `VALIDATOR_WALLET_ADDRESS` / `VALIDATOR_WALLET_ID` / `VALIDATOR_AGENT_ID` | Circle-managed dev-controlled (SCA) | Holds the ERC-8004 identity NFT, registered via `IdentityRegistry.register()` |
-| Reporter | `REPORTER_WALLET_ADDRESS` / `REPORTER_WALLET_ID` | Circle-managed dev-controlled (SCA) | Independent observer per ERC-8004's anti-self-dealing rule; calls `giveFeedback()` on `ReputationRegistry` about the Validator's agent ID after every resolved prediction |
+| Client | CLIENT_WALLET_ADDRESS | Any visitor's wallet | Represents whoever is testing the app |
+| Seller | X402_SELLER_ADDRESS, X402_SELLER_PRIVATE_KEY | Self-custodied | Receives each $0.01 payment |
+| Escrow | ESCROW_WALLET_ADDRESS | Circle-managed | Holds the funds and sends refunds when a prediction is wrong |
+| Validator | VALIDATOR_WALLET_ADDRESS, VALIDATOR_WALLET_ID, VALIDATOR_AGENT_ID | Circle-managed | Holds the AI agent's on-chain identity |
+| Reporter | REPORTER_WALLET_ADDRESS, REPORTER_WALLET_ID | Circle-managed | Independently records whether each prediction was right or wrong |`ReputationRegistry` about the Validator's agent ID after every resolved prediction |
 
 ### The money flow, start to finish
 
