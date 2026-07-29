@@ -19,5 +19,5 @@ app.use(validateRouter);
 
 const PORT = process.env.PORT ? Number(process.env.PORT) : 3001;
 app.listen(PORT, () => {
-  console.log(`PolyPredict server listening on http://localhost:${PORT}`);
+  console.log(`Foresight server listening on http://localhost:${PORT}`);
 });

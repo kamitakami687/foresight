@@ -266,7 +266,7 @@ export function App() {
 
   return (
     <div>
-      <h1>PolyPredict</h1>
+      <h1>Foresight</h1>
 
       {!isConnected ? (
         <button onClick={() => connect({ connector: injected() })}>

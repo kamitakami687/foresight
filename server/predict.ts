@@ -21,7 +21,7 @@ const gateway = createGatewayMiddleware({
   sellerAddress,
   networks: ["eip155:5042002"],
   facilitatorUrl: "https://gateway-api-testnet.circle.com",
-  description: "PolyPredict hourly market prediction",
+  description: "Foresight hourly market prediction",
 });
 
 export const predictRouter = Router();

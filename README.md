@@ -1,20 +1,20 @@
-# PolyPredict
+# Foresight
 
-PolyPredict is a live Polymarket prediction app that currently supports 5 minute, 15 minute, 1 hour, and 4 hour predictions for BTC and ETH.
+Foresight is a live Polymarket prediction app that currently supports 5 minute, 15 minute, 1 hour, and 4 hour predictions for BTC and ETH.
 
 To get a prediction, you first deposit USDC to your Gateway balance. Then you just paste a Polymarket link, choose a timeframe, or type in a question like *"will Bitcoin be up or down in the next hour?"* You pay $0.01, and an AI agent looks at real market data to give you a live prediction with its reasoning.
 
 Once the market resolves, the Validator agent checks whether the prediction was right. If it was wrong, you automatically get 90% of your money back (0.009 USDC). Every single prediction the Validator checks gets its own permanent log entry onchain, submitted by a separate Reporter wallet — both a correct call and a wrong call get recorded, each as a real transaction on Arc Testnet's ReputationRegistry contract.
 
-PolyPredict runs on Arc using USDC, with instant, gas-free payments through Circle's Nanopayments. The agent pulls live price data from Binance candlestick lines and Polymarket's own order book for real-time price and sentiment analysis. More supported assets are planned.
+Foresight runs on Arc using USDC, with instant, gas-free payments through Circle's Nanopayments. The agent pulls live price data from Binance candlestick lines and Polymarket's own order book for real-time price and sentiment analysis. More supported assets are planned.
 
-The Validator's onchain identity and every feedback event it has received are independently verifiable on [Arc Testnet's explorer](https://testnet.arcscan.app) — this isn't something you have to take PolyPredict's word for.
+The Validator's onchain identity and every feedback event it has received are independently verifiable on [Arc Testnet's explorer](https://testnet.arcscan.app) — this isn't something you have to take Foresight's word for.
 
 ---
 
 ## How the wallets work
 
-PolyPredict has five wallets, each with one clear job.
+Foresight has five wallets, each with one clear job.
 
 - **Client** is a stand-in for a regular visitor, used for testing.
 - **Seller** is where the $0.01 payment first lands when someone pays for a prediction.
@@ -59,8 +59,16 @@ required by ERC-8004's anti-self-dealing rule)
        wrong prediction   → score 20,  tag "prediction_incorrect"
   → each one is a real, independently verifiable onchain event —
     anyone can query the Validator's full accuracy history directly
-    from the contract, not from anything PolyPredict itself claims
+    from the contract, not from anything Foresight itself claims
 ```
+
+> **A note on the name:** the on-chain Validator agent's identity
+metadata still reads "PolyPredict Validator" — that's the project's
+original name at the time of ERC-8004 registration. Since that
+registration is permanent and re-registering would mean losing the
+agent's existing on-chain reputation history, the on-chain record
+keeps the old name even though the project itself is now called
+Foresight.
 
 ### SCA vs. EOA — the two wallet types, compared simply
 
