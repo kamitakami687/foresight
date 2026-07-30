@@ -1,5 +1,7 @@
 # Foresight
 
+![Foresight logo](logo.jpg)
+
 Foresight is a live Polymarket prediction app that currently supports 5 minute, 15 minute, 1 hour, and 4 hour predictions for BTC and ETH.
 
 To get a prediction, you first deposit USDC to your Gateway balance. Then you just paste a Polymarket link, choose a timeframe, or type in a question like *"Bitcoin/Ethereum be up or down?"* You pay $0.01, and an AI agent looks at real market data to give you a live prediction with its reasoning.
