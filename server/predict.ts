@@ -9,6 +9,7 @@ import {
   type DurationKey,
 } from "../lib/polymarket.js";
 import { detectAsset, predictOutcome } from "../lib/analyst-agent.js";
+import { recordPrediction } from "../lib/history.js";
 import { sweepToEscrow } from "../scripts/sweep-to-escrow.js";
 
 const sellerAddress = process.env.X402_SELLER_ADDRESS as `0x${string}`;
@@ -97,6 +98,22 @@ predictRouter.post("/predict", gateway.require("$0.01"), async (req, res) => {
       market: { slug: target.slug, title: target.title, endDate: target.endDate },
       payment,
     });
+
+    // Log the prediction for calibration history — best-effort, never
+    // fails the request.
+    try {
+      recordPrediction({
+        slug: target.slug,
+        assetKey,
+        duration,
+        predictedOutcome: outcome,
+        confidence,
+      });
+    } catch (err) {
+      console.error(
+        `History record failed: ${err instanceof Error ? err.message : String(err)}`
+      );
+    }
 
     // Sweep after the response is already sent — on-chain settlement
     // shouldn't add latency to the client's prediction result. Failure

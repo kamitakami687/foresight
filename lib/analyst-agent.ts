@@ -93,7 +93,7 @@ function computeHourlyVolatility(prices: PricePoint[]): number {
 }
 
 const BINANCE_API_BASE = "https://api.binance.com/api/v3";
-const BINANCE_SYMBOLS: Record<AssetKey, string> = {
+export const BINANCE_SYMBOLS: Record<AssetKey, string> = {
   bitcoin: "BTCUSDT",
   ethereum: "ETHUSDT",
 };
@@ -116,7 +116,7 @@ type BinanceKline = [
   string
 ];
 
-async function fetchBinanceKlines(
+export async function fetchBinanceKlines(
   symbol: string,
   interval: string,
   limit: number
@@ -317,6 +317,23 @@ const TREND_MAGNITUDE_SCALE = 1.0; // %
 const VOLATILITY_DAMPENING_SCALE = 0.5; // % — matches the old fixed threshold, now a continuous knee
 const MARKET_DIVERGENCE_SENSITIVITY = 2; // how hard disagreeing with the market dents confidence
 
+// --- Mean-reversion (A) ---
+// Short windows on crypto mean-revert more often than they trend: a
+// strong 15-minute impulse frequently snaps back. When |momentum|
+// exceeds this threshold we flip the momentum vote to the pullback
+// direction instead of blindly following the impulse.
+const MEAN_REVERSION_MOMENTUM_PCT = 0.15; // % over 15m — above this = stretched
+const MEAN_REVERSION_MAX_FLIP = 0.6; // how much of the vote flips at extreme stretch
+
+// --- Market-follow (D) ---
+// The CLOB midpoint is the crowd's real-money read. Near 0.5 it's
+// noise, but when the market is genuinely leaning (>= 0.60 or <= 0.40)
+// the crowd is a stronger signal than our momentum/trend heuristics —
+// follow it instead of fighting it. Below the threshold we ignore it
+// (it's just 50/50 noise on these recurring markets).
+const MARKET_FOLLOW_BAND = 0.10; // mid within [0.40, 0.60] = no edge, ignore
+const MARKET_FOLLOW_MAX_CONFIDENCE = 0.72; // cap so we never overclaim
+
 export function combineSignals(
   duration: DurationKey,
   priceChange15m: number,
@@ -330,15 +347,49 @@ export function combineSignals(
   // Signed, magnitude-aware directional strength in (-1, 1) — replaces
   // the old ±1 sign-only vote, so bigger moves push confidence further
   // from 0.5 continuously rather than in fixed steps.
-  const momentumStrength = Math.tanh(priceChange15m / MOMENTUM_MAGNITUDE_SCALE);
+  let momentumStrength = Math.tanh(priceChange15m / MOMENTUM_MAGNITUDE_SCALE);
   const trendStrength = Math.tanh(percentAboveOrBelowAverage / TREND_MAGNITUDE_SCALE);
+
+  // (A) Mean-reversion: a stretched 15-minute move pulls back. The
+  // stronger the stretch beyond the threshold, the more the momentum
+  // vote flips toward the opposite direction. Only applies to short
+  // windows where the impulse is the dominant signal.
+  if (duration === "5m" || duration === "15m") {
+    const stretch = Math.abs(priceChange15m) - MEAN_REVERSION_MOMENTUM_PCT;
+    if (stretch > 0) {
+      const flip = Math.min(stretch / MEAN_REVERSION_MOMENTUM_PCT, 1) * MEAN_REVERSION_MAX_FLIP;
+      // Flip toward the pullback: sign flips, magnitude shrinks by
+      // (1 - flip), so a mild stretch barely changes the call and an
+      // extreme stretch fully reverses it.
+      momentumStrength = -momentumStrength * (1 - flip);
+    }
+  }
 
   // Weighted vote between the two directional signals, same weighting
   // scheme as before — only the inputs are now magnitude-aware instead
   // of sign-only.
-  const directionalScore = weights.momentum * momentumStrength + weights.trend * trendStrength;
-  const outcome: "up" | "down" =
+  let directionalScore = weights.momentum * momentumStrength + weights.trend * trendStrength;
+  let outcome: "up" | "down" =
     directionalScore > 0 ? "up" : directionalScore < 0 ? "down" : trendDirection;
+
+  // (D) Market-follow: when the CLOB midpoint is decisively away from
+  // 0.5, the crowd's read overrides our heuristic vote entirely.
+  let confidence;
+  if (
+    marketImpliedProbability !== null &&
+    Math.abs(marketImpliedProbability - 0.5) >= MARKET_FOLLOW_BAND
+  ) {
+    outcome = marketImpliedProbability > 0.5 ? "up" : "down";
+    // Blend market conviction with our own agreement: full market
+    // conviction is capped at MARKET_FOLLOW_MAX_CONFIDENCE; if our
+    // heuristics agree, nudge a bit higher, if they disagree, lower.
+    const marketConviction = Math.abs(marketImpliedProbability - 0.5) * 2; // 0..1
+    const agreement = directionalScore > 0 === (marketImpliedProbability > 0.5) ? 1 : -1;
+    confidence =
+      0.5 + 0.5 * marketConviction * MARKET_FOLLOW_MAX_CONFIDENCE + 0.04 * agreement;
+    confidence = Math.min(0.95, Math.max(0.05, confidence));
+    return { outcome, confidence };
+  }
 
   // Volatility dampens conviction continuously: higher recent volatility
   // shrinks the directional score toward zero, scaled by how much this
@@ -360,7 +411,7 @@ export function combineSignals(
 
   const dampedScore = directionalScore * volatilityFactor * marketDivergenceFactor;
 
-  let confidence = 0.5 + 0.45 * Math.abs(dampedScore);
+  confidence = 0.5 + 0.45 * Math.abs(dampedScore);
   confidence = Math.min(0.95, Math.max(0.05, confidence));
 
   return { outcome, confidence };

@@ -7,6 +7,8 @@ import {
   useWalletClient,
 } from "wagmi";
 import { injected } from "wagmi/connectors";
+import { getWalletClient } from "wagmi/actions";
+import { wagmiConfig } from "./wagmi-config.js";
 import { signGatewayPayment } from "../lib/gateway-signer.js";
 import type { GatewayPaymentRequirements } from "../lib/gateway-signer.js";
 import { detectAsset } from "../lib/analyst-agent.js";
@@ -17,7 +19,7 @@ import {
   queryGatewayBalance,
 } from "../lib/gateway-deposit.js";
 
-const API_BASE = "http://localhost:3001";
+const API_BASE = "/api";
 
 const DURATION_BUTTONS: { key: DurationKey; label: string }[] = [
   { key: "5m", label: "5 Min" },
@@ -40,7 +42,26 @@ interface PredictionResult {
   rationale?: string;
   signalData?: unknown;
   minutesUntilClose?: number;
+  market?: { slug: string; title: string; endDate: string };
   [key: string]: unknown;
+}
+
+type CheckStatus = "idle" | "checking" | "pending" | "resolved" | "ambiguous" | "error";
+
+interface CheckResult {
+  match: boolean;
+  actualOutcome: "up" | "down";
+  refunded: boolean;
+  refundTxHash?: string;
+  reputationTxHash?: string;
+}
+
+interface PredictionStats {
+  total: number;
+  resolved: number;
+  overallWinRate: number | null;
+  byDuration: Record<string, { count: number; correct: number; winRate: number | null }>;
+  byBucket: { bucket: string; count: number; correct: number; winRate: number | null }[];
 }
 
 interface PredictionEntry {
@@ -48,10 +69,30 @@ interface PredictionEntry {
   error: string | null;
   result: PredictionResult | null;
   detailsOpen: boolean;
+  checkStatus: CheckStatus;
+  checkResult: CheckResult | null;
+  checkError: string | null;
 }
 
 function emptyEntry(): PredictionEntry {
-  return { status: "idle", error: null, result: null, detailsOpen: false };
+  return {
+    status: "idle",
+    error: null,
+    result: null,
+    detailsOpen: false,
+    checkStatus: "idle",
+    checkResult: null,
+    checkError: null,
+  };
+}
+
+const ARCSCAN_TX_BASE = "https://testnet.arcscan.app/tx/";
+
+function formatRemaining(ms: number): string {
+  const totalSeconds = Math.max(0, Math.ceil(ms / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
 }
 
 interface PaymentResource {
@@ -80,6 +121,10 @@ const STATUS_MESSAGES: Partial<Record<Status, string>> = {
 
 type DepositStatus = "idle" | "checking" | "insufficient" | "pending" | "done" | "error";
 
+function shortenAddress(addr: string): string {
+  return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
+}
+
 export function App() {
   const { address, isConnected } = useAccount();
   const { connect } = useConnect();
@@ -102,6 +147,39 @@ export function App() {
   const [depositError, setDepositError] = useState<string | null>(null);
   const [gatewayBalance, setGatewayBalance] = useState<string | null>(null);
 
+  // Calibration history — honest win-rates by duration and confidence.
+  const [stats, setStats] = useState<PredictionStats | null>(null);
+  const [statsError, setStatsError] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/stats`);
+        if (!res.ok) throw new Error(`stats ${res.status}`);
+        const data = (await res.json()) as PredictionStats;
+        if (!cancelled) {
+          setStats(data);
+          setStatsError(null);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setStatsError(err instanceof Error ? err.message : String(err));
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Single app-wide tick driving every column's live countdown — one
+  // interval instead of one per duration card.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
   const canSubmit = marketInput.trim().length > 0;
 
   const refreshGatewayBalance = useCallback(async () => {
@@ -122,9 +200,18 @@ export function App() {
   }, [isConnected, address, refreshGatewayBalance]);
 
   async function handleDeposit() {
-    if (!walletClient || !address || !publicClient) {
+    if (!isConnected || !address || !publicClient) {
       setDepositStatus("error");
       setDepositError("Connect a wallet first");
+      return;
+    }
+
+    // Same lazy-fetch as handlePredict: after reload useAccount() is
+    // hydrated while useWalletClient() may still be undefined.
+    const client = walletClient ?? (await getWalletClient(wagmiConfig));
+    if (!client) {
+      setDepositStatus("error");
+      setDepositError("Wallet client not ready, reconnect your wallet");
       return;
     }
 
@@ -148,7 +235,7 @@ export function App() {
       }
 
       setDepositStatus("pending");
-      await depositToGateway(walletClient, publicClient, depositAmount);
+      await depositToGateway(client, publicClient, depositAmount);
 
       setDepositStatus("done");
       await refreshGatewayBalance();
@@ -173,8 +260,21 @@ export function App() {
   }
 
   async function handlePredict(duration: DurationKey) {
-    if (!walletClient || !address) {
+    if (!isConnected || !address) {
       updateEntry(duration, { status: "error", error: "Connect a wallet first" });
+      return;
+    }
+
+    // useWalletClient() is an async React Query — right after a page
+    // reload/reconnect useAccount() already reports the address while
+    // the wallet client is still loading (or failed). Fetch it lazily
+    // instead of gating on the hook's possibly-stale undefined value.
+    const client = walletClient ?? (await getWalletClient(wagmiConfig));
+    if (!client) {
+      updateEntry(duration, {
+        status: "error",
+        error: "Wallet client not ready, reconnect your wallet",
+      });
       return;
     }
 
@@ -183,16 +283,15 @@ export function App() {
       error: null,
       result: null,
       detailsOpen: false,
+      checkStatus: "idle",
+      checkResult: null,
+      checkError: null,
     });
 
-    // detectAsset() matches on known asset names (bitcoin, ethereum); if
-    // the pasted text is a market URL/slug it won't match, so we fall
-    // back to passing the raw input through and let the server resolve it.
     const assetKey = detectAsset(marketInput);
     const requestBody = { marketInput, assetKey, duration };
 
     try {
-      // Step 1: request without payment, expect 402 with requirements
       const firstResponse = await fetch(`${API_BASE}/predict`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -222,14 +321,12 @@ export function App() {
         throw new Error("No usable payment requirements in 402 response");
       }
 
-      // Step 2: sign the EIP-712 authorization with the connected wallet
       updateEntry(duration, { status: "awaiting-signature" });
       const paymentPayload = await signGatewayPayment(
-        walletClient,
+        client,
         requirements
       );
 
-      // Step 3: retry with the signed payment attached
       updateEntry(duration, { status: "paying" });
       const paymentSignatureHeader = btoa(
         JSON.stringify({
@@ -264,164 +361,396 @@ export function App() {
     }
   }
 
+  async function handleCheckOutcome(duration: DurationKey) {
+    const entry = predictions[duration];
+    const slug = entry.result?.market?.slug;
+    const predictedOutcome = entry.result?.outcome;
+
+    if (!address || !slug || !predictedOutcome) {
+      updateEntry(duration, {
+        checkStatus: "error",
+        checkError: "Missing data needed to check this outcome",
+      });
+      return;
+    }
+
+    updateEntry(duration, { checkStatus: "checking", checkError: null });
+
+    try {
+      const response = await fetch(`${API_BASE}/validate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          slug,
+          predictedOutcome: String(predictedOutcome).toLowerCase(),
+          userAddress: address,
+        }),
+      });
+
+      if (!response.ok) {
+        const body = await response.text();
+        throw new Error(`Validate failed (${response.status}): ${body}`);
+      }
+
+      const data = (await response.json()) as {
+        status: "pending" | "ambiguous" | "resolved";
+        match?: boolean;
+        actualOutcome?: "up" | "down";
+        refunded?: boolean;
+        refundTxHash?: string;
+        reputationTxHash?: string;
+      };
+
+      if (data.status === "pending" || data.status === "ambiguous") {
+        updateEntry(duration, { checkStatus: data.status });
+        return;
+      }
+
+      updateEntry(duration, {
+        checkStatus: "resolved",
+        checkResult: {
+          match: data.match!,
+          actualOutcome: data.actualOutcome!,
+          refunded: data.refunded!,
+          refundTxHash: data.refundTxHash,
+          reputationTxHash: data.reputationTxHash,
+        },
+      });
+    } catch (err) {
+      updateEntry(duration, {
+        checkStatus: "error",
+        checkError: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
   return (
-    <div>
-      <h1>Foresight</h1>
-
-      {!isConnected ? (
-        <button onClick={() => connect({ connector: injected() })}>
-          Connect Wallet
-        </button>
-      ) : (
-        <div>
-          <p>Connected: {address}</p>
-          <button onClick={() => disconnect()}>Disconnect</button>
+    <div className="app">
+      <header className="header">
+        <div className="header-left">
+          <span className="logo">Foresight</span>
+          <span className="logo-sub">AI Prediction Markets</span>
         </div>
-      )}
 
-      <input
-        type="text"
-        value={marketInput}
-        onChange={(e) => setMarketInput(e.target.value)}
-        placeholder="Paste a Polymarket URL (e.g. bitcoin-up-or-down-july-16-2026-11pm-et)"
-        style={{ width: "28rem", maxWidth: "90%", padding: "0.5rem", marginTop: "2rem" }}
-      />
+        {!isConnected ? (
+          <button className="btn-connect" onClick={() => connect({ connector: injected() })}>
+            Connect Wallet
+          </button>
+        ) : (
+          <div className="wallet-badge">
+            <span className="wallet-dot" />
+            <span className="wallet-address">{shortenAddress(address!)}</span>
+            <button className="btn btn-ghost btn-sm" onClick={() => disconnect()}>
+              Disconnect
+            </button>
+          </div>
+        )}
+      </header>
 
-      <div style={{ display: "flex", gap: "1.5rem", marginTop: "1.5rem", marginLeft: "1.5rem" }}>
-        {DURATION_BUTTONS.map(({ key, label }) => {
-          const entry = predictions[key];
-          const isBusy = BUSY_STATUSES.includes(entry.status);
-          const outcome = entry.result?.outcome
-            ? String(entry.result.outcome).toUpperCase()
-            : "";
+      <main className="main">
+        {/* Market Input */}
+        <section className="market-section">
+          <label className="market-label">Market URL</label>
+          <div className="market-input-wrapper">
+            <input
+              type="text"
+              className="market-input"
+              value={marketInput}
+              onChange={(e) => setMarketInput(e.target.value)}
+              placeholder="Paste a Polymarket URL, e.g. bitcoin-up-or-down-july-16-2026-11pm-et"
+            />
+          </div>
+        </section>
 
-          return (
-            <div key={key} style={{ display: "flex", flexDirection: "column", width: "14rem" }}>
-              <button onClick={() => handlePredict(key)} disabled={!canSubmit || isBusy}>
-                {isBusy ? `${label}...` : label}
-              </button>
+        {/* Prediction Cards */}
+        <div className="prediction-grid">
+          {DURATION_BUTTONS.map(({ key, label }) => {
+            const entry = predictions[key];
+            const isBusy = BUSY_STATUSES.includes(entry.status);
+            const outcome = entry.result?.outcome
+              ? String(entry.result.outcome).toUpperCase()
+              : "";
 
-              <div style={{ display: "flex", flexDirection: "row", alignItems: "flex-start", gap: "0.5rem", marginTop: "0.5rem" }}>
-                <span style={{ fontSize: "0.8rem", fontWeight: "bold", whiteSpace: "nowrap", marginTop: "0.5rem" }}>
-                  RESULT:
-                </span>
+            const endDateMs = entry.result?.market?.endDate
+              ? new Date(entry.result.market.endDate).getTime()
+              : null;
+            const remainingMs = endDateMs !== null ? endDateMs - now : null;
+            const closePassed = remainingMs !== null && remainingMs <= 0;
 
-                <div
-                  style={{
-                    flex: 1,
-                    minHeight: "6rem",
-                    border: "1px solid #ccc",
-                    borderRadius: "4px",
-                    padding: "0.5rem",
-                  }}
-                >
-                  {entry.status === "idle" && null}
+            return (
+              <div key={key} className="prediction-card">
+                <div className="prediction-card-header">
+                  <span className="prediction-card-title">{label}</span>
+                  <button
+                    className="btn btn-primary btn-sm"
+                    onClick={() => handlePredict(key)}
+                    disabled={!canSubmit || isBusy}
+                  >
+                    {isBusy ? "..." : "Predict"}
+                  </button>
+                </div>
+
+                <div className="prediction-card-body">
+                  {entry.status === "idle" && (
+                    <span className="status-idle">Enter a market URL to begin</span>
+                  )}
 
                   {isBusy && (
-                    <p style={{ fontSize: "0.8rem" }}>{STATUS_MESSAGES[entry.status]}</p>
+                    <div className="status-busy">
+                      <div className="spinner" />
+                      <span className="status-message">{STATUS_MESSAGES[entry.status]}</span>
+                    </div>
                   )}
 
                   {entry.status === "error" && (
-                    <p style={{ fontSize: "0.8rem", color: "red" }}>{entry.error}</p>
+                    <span className="status-error">{entry.error}</span>
                   )}
 
                   {entry.status === "done" && entry.result && (
-                    <div>
-                      <p
-                        style={{
-                          fontWeight: "bold",
-                          fontSize: "1.2rem",
-                          color: outcome === "UP" ? "green" : outcome === "DOWN" ? "red" : undefined,
-                        }}
+                    <>
+                      <span
+                        className={`outcome ${
+                          outcome === "UP"
+                            ? "outcome-up"
+                            : outcome === "DOWN"
+                            ? "outcome-down"
+                            : "outcome-neutral"
+                        }`}
                       >
-                        {outcome}
-                      </p>
-                      {entry.result.confidence !== undefined && (
-                        <p style={{ fontSize: "0.8rem" }}>
-                          Confidence: {entry.result.confidence}
+                        {outcome || "—"}
+                      </span>
+
+                      <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                        {entry.result.confidence !== undefined && (
+                          <span className="confidence-badge">
+                            {Math.round(entry.result.confidence * 100)}%
+                          </span>
+                        )}
+                      </div>
+
+                      {remainingMs !== null && !closePassed && (
+                        <span className="resolves-in">
+                          Resolves in {formatRemaining(remainingMs)}
+                        </span>
+                      )}
+
+                      {closePassed &&
+                        entry.checkStatus !== "resolved" &&
+                        entry.checkStatus !== "ambiguous" && (
+                          <div className="check-outcome-block">
+                            {entry.checkStatus === "pending" && (
+                              <p className="check-outcome-message">
+                                Market still resolving, check back shortly
+                              </p>
+                            )}
+                            {entry.checkStatus === "error" && entry.checkError && (
+                              <p className="check-outcome-message check-outcome-message-error">
+                                {entry.checkError}
+                              </p>
+                            )}
+                            <button
+                              className="btn btn-secondary btn-sm"
+                              onClick={() => handleCheckOutcome(key)}
+                              disabled={entry.checkStatus === "checking"}
+                            >
+                              {entry.checkStatus === "checking" ? "Checking..." : "Check Outcome"}
+                            </button>
+                          </div>
+                        )}
+
+                      {entry.checkStatus === "resolved" && entry.checkResult && (
+                        entry.checkResult.match ? (
+                          <p className="check-outcome-result check-outcome-correct">
+                            ✓ Correct — fee kept
+                          </p>
+                        ) : (
+                          <div className="check-outcome-result check-outcome-wrong">
+                            <p>✗ Wrong — 0.009 USDC refunded</p>
+                            {entry.checkResult.refundTxHash && (
+                              <a
+                                href={`${ARCSCAN_TX_BASE}${entry.checkResult.refundTxHash}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="arcscan-link"
+                              >
+                                View refund tx on Arcscan
+                              </a>
+                            )}
+                          </div>
+                        )
+                      )}
+
+                      {entry.checkStatus === "ambiguous" && (
+                        <p className="check-outcome-result check-outcome-ambiguous">
+                          Market resolved too close to call, no refund applies
                         </p>
                       )}
-                      {entry.result.minutesUntilClose !== undefined && (
-                        <p style={{ fontSize: "0.75rem", color: "#666" }}>
-                          Resolves in {Math.round(entry.result.minutesUntilClose)} min
-                        </p>
-                      )}
+
                       <button
-                        style={{ fontSize: "0.75rem" }}
+                        className="details-toggle"
                         onClick={() => toggleDetails(key)}
                       >
                         {entry.detailsOpen ? "Hide details" : "View details"}
                       </button>
+
                       {entry.detailsOpen && (
-                        <div style={{ marginTop: "0.5rem" }}>
+                        <div className="details-content">
                           {entry.result.rationale && (
-                            <p style={{ fontSize: "0.75rem" }}>{entry.result.rationale}</p>
+                            <p>{entry.result.rationale}</p>
                           )}
-                          <pre style={{ fontSize: "0.7rem" }}>
+                          <pre>
                             {JSON.stringify(entry.result.signalData ?? entry.result, null, 2)}
                           </pre>
                         </div>
                       )}
-                    </div>
+                    </>
                   )}
                 </div>
               </div>
+            );
+          })}
+        </div>
+
+        {/* Deposit Section */}
+        <section className="deposit-section">
+          <div className="deposit-section-title">Gateway</div>
+
+          <div className="deposit-row">
+            <span className="deposit-label">AMOUNT</span>
+            <input
+              type="number"
+              className="deposit-input"
+              min="0"
+              step="0.01"
+              value={depositAmount}
+              onChange={(e) => setDepositAmount(e.target.value)}
+              disabled={depositStatus === "pending" || depositStatus === "checking"}
+            />
+            <button
+              className="btn btn-primary"
+              onClick={handleDeposit}
+              disabled={!isConnected || depositStatus === "checking" || depositStatus === "pending"}
+            >
+              {depositStatus === "checking"
+                ? "Checking..."
+                : depositStatus === "pending"
+                ? "Confirm..."
+                : "Deposit"}
+            </button>
+          </div>
+
+          <div className="deposit-balance">
+            <span className="balance-label">GATEWAY BALANCE</span>
+            <span className="balance-value">
+              {gatewayBalance !== null ? `${gatewayBalance} USDC` : "—"}
+            </span>
+          </div>
+
+          {depositStatus === "insufficient" && (
+            <p className="deposit-message deposit-message-warn">
+              Not enough USDC in your wallet. Get testnet USDC from{" "}
+              <a href="https://faucet.circle.com/" target="_blank" rel="noreferrer">
+                faucet.circle.com
+              </a>
+              .
+            </p>
+          )}
+
+          {depositStatus === "error" && depositError && (
+            <p className="deposit-message deposit-message-error">{depositError}</p>
+          )}
+
+          {depositStatus === "done" && (
+            <p className="deposit-message" style={{ color: "var(--accent-green)" }}>
+              Deposit successful
+            </p>
+          )}
+        </section>
+      </main>
+
+      <section className="stats-panel">
+        <h2>Track record</h2>
+        {statsError && <p className="stats-muted">Stats unavailable: {statsError}</p>}
+        {!statsError && !stats && <p className="stats-muted">Loading stats…</p>}
+        {stats && (
+          <>
+            <div className="stats-grid">
+              <div className="stat-cell">
+                <span className="stat-value">{stats.total}</span>
+                <span className="stat-label">predictions</span>
+              </div>
+              <div className="stat-cell">
+                <span className="stat-value">{stats.resolved}</span>
+                <span className="stat-label">resolved</span>
+              </div>
+              <div className="stat-cell">
+                <span className="stat-value">
+                  {stats.overallWinRate !== null
+                    ? `${Math.round(stats.overallWinRate * 100)}%`
+                    : "—"}
+                </span>
+                <span className="stat-label">overall accuracy</span>
+              </div>
             </div>
-          );
-        })}
-      </div>
 
-      <div
-        style={{
-          marginTop: "2.5rem",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-          <span style={{ fontWeight: "bold" }}>AMOUNT:</span>
-          <input
-            type="number"
-            min="0"
-            step="0.01"
-            value={depositAmount}
-            onChange={(e) => setDepositAmount(e.target.value)}
-            style={{ width: "6rem", padding: "0.4rem" }}
-          />
-          <button
-            onClick={handleDeposit}
-            disabled={!isConnected || depositStatus === "checking" || depositStatus === "pending"}
-          >
-            {depositStatus === "pending" ? "Confirm deposit in your wallet..." : "Deposit"}
-          </button>
-        </div>
+            {stats.resolved > 0 && (
+              <>
+                <h3>By duration</h3>
+                <table className="stats-table">
+                  <thead>
+                    <tr>
+                      <th>Duration</th>
+                      <th>Count</th>
+                      <th>Win rate</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Object.entries(stats.byDuration).map(([duration, d]) => (
+                      <tr key={duration}>
+                        <td>{duration}</td>
+                        <td>{d.count}</td>
+                        <td>
+                          {d.winRate !== null ? `${Math.round(d.winRate * 100)}%` : "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
 
-        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginTop: "0.5rem" }}>
-          <span style={{ fontWeight: "bold" }}>GATEWAY BALANCE:</span>
-          <input
-            type="text"
-            readOnly
-            disabled
-            value={gatewayBalance !== null ? `${gatewayBalance} USDC` : "—"}
-            style={{ width: "6rem", padding: "0.4rem" }}
-          />
-        </div>
-
-        {depositStatus === "insufficient" && (
-          <p style={{ fontSize: "0.8rem", color: "red" }}>
-            Not enough USDC in your wallet. Get testnet USDC from{" "}
-            <a href="https://faucet.circle.com/" target="_blank" rel="noreferrer">
-              faucet.circle.com
-            </a>
-            .
-          </p>
+                <h3>By confidence</h3>
+                <table className="stats-table">
+                  <thead>
+                    <tr>
+                      <th>Confidence</th>
+                      <th>Count</th>
+                      <th>Win rate</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {stats.byBucket
+                      .filter((b) => b.count > 0)
+                      .map((b) => (
+                        <tr key={b.bucket}>
+                          <td>{b.bucket}</td>
+                          <td>{b.count}</td>
+                          <td>{b.winRate !== null ? `${Math.round(b.winRate * 100)}%` : "—"}</td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+                <p className="stats-muted">
+                  Win rates are honest, not claimed — every outcome is recorded on-chain by the
+                  Reporter wallet.
+                </p>
+              </>
+            )}
+          </>
         )}
+      </section>
 
-        {depositStatus === "error" && depositError && (
-          <p style={{ fontSize: "0.8rem", color: "red" }}>{depositError}</p>
-        )}
-      </div>
+      <footer className="footer">
+        Powered by Polymarket &middot; Arc Network &middot; Circle Nanopayments
+      </footer>
     </div>
   );
 }

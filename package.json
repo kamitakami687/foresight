@@ -4,7 +4,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "tsx tests/run.ts",
+    "test:watch": "tsx watch tests/run.ts",
+    "typecheck": "tsc --noEmit",
     "dev": "vite",
     "server": "tsx watch server/index.ts"
   },

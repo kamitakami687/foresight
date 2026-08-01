@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { checkOutcome, giveFeedback } from "../lib/validator-agent.js";
+import { computeStats, recordResolution } from "../lib/history.js";
 import { refundUser } from "../scripts/refund-user.js";
 
 export const validateRouter = Router();
@@ -37,6 +38,14 @@ validateRouter.post("/validate", async (req, res) => {
     }
 
     // resolution.status === "resolved" from here on.
+    try {
+      recordResolution(slug, resolution.actualOutcome);
+    } catch (err) {
+      console.error(
+        `History resolution record failed: ${err instanceof Error ? err.message : String(err)}`
+      );
+    }
+
     if (resolution.match) {
       const { txHash: reputationTxHash } = await giveFeedback(true);
       res.json({
@@ -61,6 +70,18 @@ validateRouter.post("/validate", async (req, res) => {
     });
   } catch (err) {
     res.status(502).json({
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+});
+
+// Honest track record: total predictions, resolved count, overall
+// win-rate, per-duration win-rates, and win-rate per confidence bucket.
+validateRouter.get("/stats", (_req, res) => {
+  try {
+    res.json(computeStats());
+  } catch (err) {
+    res.status(500).json({
       error: err instanceof Error ? err.message : String(err),
     });
   }

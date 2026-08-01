@@ -3,3 +3,4 @@ node_modules
 dist
 _test-*.ts
 _debug-*.ts
+data/predictions.json
