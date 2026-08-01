@@ -193,6 +193,8 @@ npm run dev      # starts the Vite frontend on :5173
 
 ## Manual testing
 
+## *The online version is in progress
+
 A judge or reviewer can verify the whole flow themselves, end to end:
 
 1. Open the app and click Connect Wallet. Confirm you're prompted to switch to Arc Testnet if you're not already on it.
