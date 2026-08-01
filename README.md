@@ -8,6 +8,10 @@ Foresight is an autonomous prediction agent built on Arc that brings AI-powered 
 
 Built on Arc, where USDC is the native gas token, so there's nothing extra to hold just to pay network fees. A live example of the agentic economy in action.
 
+Foresight uses Binance klines as the primary price source, since it updates every minute with no API key needed, and Polymarket's own CLOB midpoint as a comparison signal, since it shows what the market itself is pricing the outcome at right now — letting the app show when its own prediction agrees or disagrees with the crowd.
+
+A live timer shows how much time remains until the prediction resolves; once it hits zero, a Check Outcome button appears.
+
 ---
 
 ## How the wallets work
