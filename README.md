@@ -6,7 +6,11 @@ Foresight is a live Polymarket prediction app that currently supports 5 minute, 
 
 To get a prediction, you first deposit USDC to your Gateway balance. Then you just paste a Polymarket link, choose a timeframe, or type in a question like *"Bitcoin/Ethereum be up or down?"* You pay $0.01, and an AI agent looks at real market data to give you a live prediction with its reasoning.
 
-Once the market resolves, the Validator checks if the prediction was right. Wrong predictions get 90% refunded automatically. Every result is logged permanently on-chain by the Reporter wallet — the track record is public, not just claimed.
+The agent's reasoning is based on the real time data straight from the Binance klines and Polymarket CLOB API endpoints. There’s a live timer that shows how much time remains until the prediction resolves. 
+
+Once the timer is up,  the “Check Outcome button” appears.
+
+Once the market resolves, the Validator checks if the prediction was right. Wrong predictions get 90% refunded automatically. Every result is logged permanently onchain by the Reporter wallet and the track record is public.
 
 Foresight uses Binance klines as the primary price source, since it updates every minute with no API key needed. Polymarket's own CLOB midpoint as a new signal, since it shows what the market itself is pricing the outcome at right now, which lets the app show when its own prediction agrees or disagrees with the crowd.
 
