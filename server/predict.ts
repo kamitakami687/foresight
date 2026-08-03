@@ -89,16 +89,6 @@ predictRouter.post("/predict", gateway.require("$0.01"), async (req, res) => {
       target
     );
 
-    res.json({
-      outcome,
-      confidence,
-      rationale,
-      signalData,
-      minutesUntilClose,
-      market: { slug: target.slug, title: target.title, endDate: target.endDate },
-      payment,
-    });
-
     // Log the prediction for calibration history — best-effort, never
     // fails the request.
     try {
@@ -115,10 +105,11 @@ predictRouter.post("/predict", gateway.require("$0.01"), async (req, res) => {
       );
     }
 
-    // Sweep after the response is already sent — on-chain settlement
-    // shouldn't add latency to the client's prediction result. Failure
-    // here is logged, not surfaced to the client: they already got a
-    // valid prediction for a payment that settled correctly.
+    // Sweep before responding — awaited (not fire-and-forget) so it
+    // survives on serverless hosts, where the process can be frozen or
+    // killed right after the response is sent. Failure here is logged,
+    // not surfaced to the client: they already got a valid prediction
+    // for a payment that settled correctly.
     if (payment) {
       console.log(
         `Payment receipt: payer=${payment.payer} amount=${payment.amount} network=${payment.network} tx=${payment.transaction ?? "n/a"}`
@@ -130,6 +121,16 @@ predictRouter.post("/predict", gateway.require("$0.01"), async (req, res) => {
         console.error(`Sweep to escrow failed: ${err instanceof Error ? err.message : String(err)}`);
       }
     }
+
+    res.json({
+      outcome,
+      confidence,
+      rationale,
+      signalData,
+      minutesUntilClose,
+      market: { slug: target.slug, title: target.title, endDate: target.endDate },
+      payment,
+    });
   } catch (err) {
     res.status(502).json({
       error: err instanceof Error ? err.message : String(err),

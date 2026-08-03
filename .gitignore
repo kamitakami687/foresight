@@ -1,6 +1,7 @@
 node_modules
 .env
 dist
+public
 _test-*.ts
 _debug-*.ts
 data/predictions.json

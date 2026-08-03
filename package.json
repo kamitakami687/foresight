@@ -8,6 +8,7 @@
     "test:watch": "tsx watch tests/run.ts",
     "typecheck": "tsc --noEmit",
     "dev": "vite",
+    "build": "vite build",
     "server": "tsx watch server/index.ts"
   },
   "keywords": [],

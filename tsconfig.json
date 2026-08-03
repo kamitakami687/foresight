@@ -13,6 +13,6 @@
     "resolveJsonModule": true,
     "jsx": "react-jsx"
   },
-  "include": ["lib/**/*", "server/**/*", "scripts/**/*", "frontend/**/*"],
+  "include": ["lib/**/*", "server/**/*", "scripts/**/*", "frontend/**/*", "server.ts"],
   "exclude": ["node_modules", "dist"]
 }
