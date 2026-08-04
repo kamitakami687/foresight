@@ -5,3 +5,6 @@ public
 _test-*.ts
 _debug-*.ts
 data/predictions.json
+
+.vercel
+.env*
