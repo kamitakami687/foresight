@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto";
-import { initiateDeveloperControlledWalletsClient } from "@circle-fin/developer-controlled-wallets";
 import { getMarketBySlug, type AssetKey, type GammaEvent } from "./polymarket.js";
 import {
   BINANCE_SYMBOLS,
@@ -230,7 +229,14 @@ export async function giveFeedback(match: boolean): Promise<{ txHash: string }> 
     throw new Error("Missing CIRCLE_API_KEY or CIRCLE_ENTITY_SECRET in .env");
   }
 
-  const client = initiateDeveloperControlledWalletsClient({ apiKey, entitySecret });
+  // Loaded dynamically (not a static top-level import) for two reasons:
+  // Node's native ESM loader can't resolve this CJS package's named
+  // export in Vercel's runtime (only `default`, i.e. the raw
+  // module.exports object, is reliably interop'd), and deferring the
+  // import means a Circle-side failure only breaks giveFeedback()/
+  // /validate instead of crashing the whole server module on load.
+  const { default: circleWallets } = await import("@circle-fin/developer-controlled-wallets");
+  const client = circleWallets.initiateDeveloperControlledWalletsClient({ apiKey, entitySecret });
   const { value, tag1 } = feedbackFor(match);
 
   const txRes = await client.createContractExecutionTransaction({

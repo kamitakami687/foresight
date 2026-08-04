@@ -1,18 +1,24 @@
 import "dotenv/config";
 import { randomUUID } from "node:crypto";
-import { initiateDeveloperControlledWalletsClient } from "@circle-fin/developer-controlled-wallets";
 import { ARC_CONFIG } from "../lib/arc.js";
 
 const REFUND_AMOUNT_USDC = "0.009"; // 90% of the $0.01 prediction fee
 const ESCROW_BLOCKCHAIN = "ARC-TESTNET";
 
-function getClient() {
+// Loaded dynamically (not a static top-level import) for two reasons:
+// Node's native ESM loader can't resolve this CJS package's named export
+// in Vercel's runtime (only `default`, i.e. the raw module.exports
+// object, is reliably interop'd), and deferring the import means a
+// Circle-side failure only breaks refundUser() instead of crashing the
+// whole server module on load.
+async function getClient() {
   const apiKey = process.env.CIRCLE_API_KEY;
   const entitySecret = process.env.CIRCLE_ENTITY_SECRET;
   if (!apiKey || !entitySecret) {
     throw new Error("Missing CIRCLE_API_KEY or CIRCLE_ENTITY_SECRET in .env");
   }
-  return initiateDeveloperControlledWalletsClient({ apiKey, entitySecret });
+  const { default: circleWallets } = await import("@circle-fin/developer-controlled-wallets");
+  return circleWallets.initiateDeveloperControlledWalletsClient({ apiKey, entitySecret });
 }
 
 export async function refundUser(userAddress: string): Promise<{ txHash: string }> {
@@ -21,7 +27,7 @@ export async function refundUser(userAddress: string): Promise<{ txHash: string 
     throw new Error("Missing ESCROW_WALLET_ADDRESS in .env");
   }
 
-  const client = getClient();
+  const client = await getClient();
 
   // Matches dev-controlled-projects/send-assets.ts's proven-working shape:
   // walletAddress + blockchain, not walletId — the walletId branch of
