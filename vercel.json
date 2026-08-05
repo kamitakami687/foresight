@@ -1,4 +1,9 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "framework": "express"
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "https://foresight-api.vercel.app/$1"
+    }
+  ]
 }

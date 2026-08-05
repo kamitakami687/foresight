@@ -4,10 +4,11 @@ import react from "@vitejs/plugin-react";
 export default defineConfig({
   plugins: [react()],
   build: {
-    // Vercel serves static assets only from public/** for Express
-    // projects (express.static() is ignored there) — point the Vite
-    // build output there directly instead of the default dist/.
-    outDir: "public",
+    // SPLIT deployment: frontend is a pure Vite project (Vercel Vite
+    // preset collects dist/). The Express backend lives in its own
+    // Vercel project (foresight-api). public/** collection is no
+    // longer used, so outDir returns to the default dist/.
+    outDir: "dist",
   },
   server: {
     port: 5173,
