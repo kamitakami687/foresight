@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { createRequire } from "node:module";
 import { getMarketBySlug, type AssetKey, type GammaEvent } from "./polymarket.js";
 import {
   BINANCE_SYMBOLS,
@@ -229,20 +230,15 @@ export async function giveFeedback(match: boolean): Promise<{ txHash: string }> 
     throw new Error("Missing CIRCLE_API_KEY or CIRCLE_ENTITY_SECRET in .env");
   }
 
-  // Loaded dynamically (not a static top-level import) so a Circle-side
-  // failure only breaks giveFeedback()/validate instead of crashing the
-  // whole server module on load. Use the NAMED export: with "type":
-  // "module" the runtime resolves import() to the SDK's ESM build, which
-  // has no `default` export (named exports only) — destructuring
-  // `default` yields undefined and crashes at the call site.
-  const {
-    default: sdkDefault,
-    initiateDeveloperControlledWalletsClient,
-  } = await import("@circle-fin/developer-controlled-wallets");
-  const initClient =
-    initiateDeveloperControlledWalletsClient ??
-    sdkDefault?.initiateDeveloperControlledWalletsClient;
-  const client = initClient({ apiKey, entitySecret });
+  // Loaded lazily via require() (not import()) so it resolves to the SDK's
+  // CJS build. Vercel's Node runtime cannot load the package's ESM build
+  // (dist/*.es.js has no "type": "module" in the package and .es.js is not
+  // a recognized ESM extension there) — it crashed /validate with
+  // "Cannot use import statement outside a module". require() uses the
+  // "require" exports condition -> dist/*.cjs.js, a clean CommonJS bundle.
+  const require = createRequire(import.meta.url);
+  const circleWallets = require("@circle-fin/developer-controlled-wallets");
+  const client = circleWallets.initiateDeveloperControlledWalletsClient({ apiKey, entitySecret });
   const { value, tag1 } = feedbackFor(match);
 
   const txRes = await client.createContractExecutionTransaction({

@@ -1,28 +1,26 @@
 import "dotenv/config";
 import { randomUUID } from "node:crypto";
+import { createRequire } from "node:module";
 import { ARC_CONFIG } from "../lib/arc.js";
 
 const REFUND_AMOUNT_USDC = "0.009"; // 90% of the $0.01 prediction fee
 const ESCROW_BLOCKCHAIN = "ARC-TESTNET";
 
-// Loaded dynamically (not a static top-level import) so a Circle-side
-// failure only breaks refundUser() instead of crashing the whole server
-// module on load. Named export: with "type": "module" import() resolves
-// to the ESM build, which has no `default` export.
+// Loaded lazily via require() (not import()) so it resolves to the SDK's
+// CJS build. Vercel's Node runtime cannot load the package's ESM build
+// (dist/*.es.js has no "type": "module" in the package and .es.js is not
+// a recognized ESM extension there) — it crashed /validate with
+// "Cannot use import statement outside a module". require() uses the
+// "require" exports condition -> dist/*.cjs.js, a clean CommonJS bundle.
 async function getClient() {
   const apiKey = process.env.CIRCLE_API_KEY;
   const entitySecret = process.env.CIRCLE_ENTITY_SECRET;
   if (!apiKey || !entitySecret) {
     throw new Error("Missing CIRCLE_API_KEY or CIRCLE_ENTITY_SECRET in .env");
   }
-  const {
-    default: sdkDefault,
-    initiateDeveloperControlledWalletsClient,
-  } = await import("@circle-fin/developer-controlled-wallets");
-  const initClient =
-    initiateDeveloperControlledWalletsClient ??
-    sdkDefault?.initiateDeveloperControlledWalletsClient;
-  return initClient({ apiKey, entitySecret });
+  const require = createRequire(import.meta.url);
+  const circleWallets = require("@circle-fin/developer-controlled-wallets");
+  return circleWallets.initiateDeveloperControlledWalletsClient({ apiKey, entitySecret });
 }
 
 export async function refundUser(userAddress: string): Promise<{ txHash: string }> {
