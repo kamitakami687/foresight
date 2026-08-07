@@ -2,7 +2,9 @@
 
 ![Foresight logo](logo.jpg)
 
-A prediction app built on Arc Testnet, using USDC for gas payments. Powered by an autonomous AI agent that makes 5 min, 15 min, 1 hour, and 4 hour BTC and ETH predictions, gets paid, and refunds the user 90% when wrong.
+# Website: https://foresight-predict.vercel.app/
+
+Foresight is a prediction app built on Arc Testnet, using USDC for gas payments. Powered by an autonomous AI agent that makes 5 min, 15 min, 1 hour, and 4 hour BTC and ETH predictions, gets paid, and refunds the user 90% when wrong.
 
 Foresight is an autonomous prediction agent built on Arc that brings AI-powered forecasts to Polymarket's short-term Bitcoin and Ethereum markets, 5 minutes, 15 minutes, 1 hour, or 4 hours out. Every prediction is requested and paid for through Circle's x402 Nanopayments, a gasless, signed agentic payment protocol, and the agent itself holds a verifiable onchain identity and reputation record under the ERC-8004 standard, so its real accuracy can be checked independently, not just claimed.
 
