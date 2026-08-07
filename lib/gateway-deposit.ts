@@ -7,7 +7,7 @@ import {
   type PublicClient,
   type WalletClient,
 } from "viem";
-import { ARC_CONFIG } from "./arc.js";
+import { ARC_CONFIG, arcChain } from "./arc.js";
 
 // Arc Testnet Gateway Wallet / domain (see Circle Gateway testnet reference).
 export const GATEWAY_WALLET_ADDRESS: Address = "0x0077777d7EBA4688BDeF3E311b846F25870A19B9";
@@ -56,7 +56,7 @@ export async function depositToGateway(
 
   const approvalTx = await walletClient.writeContract({
     account,
-    chain: walletClient.chain,
+    chain: arcChain,
     address: usdcAddress,
     abi: erc20Abi,
     functionName: "approve",
@@ -66,7 +66,7 @@ export async function depositToGateway(
 
   const depositTx = await walletClient.writeContract({
     account,
-    chain: walletClient.chain,
+    chain: arcChain,
     address: GATEWAY_WALLET_ADDRESS,
     abi: gatewayWalletAbi,
     functionName: "deposit",
