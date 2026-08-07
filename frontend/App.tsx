@@ -441,7 +441,9 @@ export function App() {
         });
         return true;
       }
-      setChainHint("Switch to Arc Testnet in your wallet to continue.");
+      setChainHint(
+        `Wrong network: chain ${chainId ?? "unknown"}, expected Arc Testnet (${arcChain.id}).`
+      );
       return false;
     }
   }
