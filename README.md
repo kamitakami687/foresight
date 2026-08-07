@@ -91,8 +91,7 @@ foresight/
 ├── frontend/
 │   ├── App.tsx                # Main UI: wallet connect, Gateway deposit, predictions, Check Outcome
 │   ├── main.tsx                # React entry point
-│   ├── styles.css              # Design system + component styles
-│   └── wagmi-config.ts        # Arc Testnet chain config for wagmi/viem
+│   └── styles.css              # Design system + component styles
 ├── tests/
 │   └── run.ts                 # Deterministic unit tests (npm test)
 ├── .env.example
@@ -105,7 +104,7 @@ foresight/
 Visitor's wallet (MetaMask)
     |
     v
-wagmi + viem (wallet connect, chain check, EIP-712 signing)
+EIP-6963 wallet discovery + viem (wallet connect, chain check, EIP-712 signing)
     |
     v
 frontend/App.tsx
@@ -122,6 +121,23 @@ server/validate.ts
     +-- refunds if wrong:  scripts/refund-user.ts        -> Escrow wallet
     +-- logs reputation:   ReputationRegistry.giveFeedback() -> Reporter wallet
 ```
+
+---
+
+## Deployment & Architecture
+
+Foresight deploys as two separate Vercel projects from one repository: the frontend (`foresight-predict.vercel.app`, Vite preset) and the backend (`foresight-api.vercel.app`, Express preset). The frontend's `vercel.json` rewrites every `/api/*` request to the backend project.
+
+**Why not one Express + Vite project?** Vercel snapshots `public/**` for its static builder *before* the build command runs. On a clean deploy the freshly-built frontend doesn't exist yet, so the static output is always empty and every request falls through to Express — the classic `Cannot GET /`. Splitting the projects lets each one use the builder it was made for.
+
+- `vite.config.ts` builds into `dist/` (Vite's default). The earlier setup pointed `build.outDir` at `public/`, which made Vercel's static collection non-deterministic — empty builds on some deploys, a race between Vite's output and the static builder on others. `dist/` keeps the two apart.
+- `typescript` is pinned to `6.0.3`. TypeScript 7's native compiler doesn't expose `ts.sys` the way `@vercel/node`'s tooling expects, so the backend build breaks on TS7.
+- The Circle SDK (`@circle-fin/developer-controlled-wallets`) is imported dynamically (`await import(...)` inside the functions that need it). A top-level static named import crashes module load under Vercel's native ESM loader — the CJS interop layer can't synthesize named exports for this package.
+- `package.json` overrides `uuid` to `^11.1.1`. `@circle-fin/app-kit` unconditionally requires `@solana/web3.js`, which pulls in `rpc-websockets`, which `require()`s `uuid` — and uuid 14 dropped CommonJS entirely.
+- The wallet layer doesn't use wagmi. Wallets are discovered through raw EIP-6963 `announceProvider` events, connected with a direct `eth_requestAccounts`, and switched to Arc with `wallet_switchEthereumChain` (falling back to `wallet_addEthereumChain` on 4902) — all on the chosen wallet's own provider object, with viem clients created directly. wagmi's connector/client wrappers silently blocked the network switch in real wallets; the raw-provider path is how working Arc dApps (AnchorPay, ArcShift) do it.
+- Arc Testnet parameters: chain ID 5042002, RPC `https://rpc.testnet.arc.io` (fallback `https://rpc.testnet.arc.network`), USDC as the native gas token with 18 decimals, explorer `testnet.arcscan.app`.
+
+**Testing the wallet layer:** test locally with `npm run dev` and a real wallet (MetaMask or Rabby) — not by deploying. Local dev runs on `tsx`, which is more permissive about ESM/CJS interop than Vercel's runtime, so a bug that only appears after deploy is the expensive way to find it.
 
 ---
 
@@ -146,7 +162,7 @@ https://testnet.arcscan.app/address/0xa75dbd9e467edd520381b8eecb75ef78f0c1f0ea
 - Chain ID: 5042002
 - Native gas token: USDC, two interfaces on one token: native gas balance uses 18 decimals, the ERC-20 interface (0x3600...) uses 6 decimals. All app-level transfers use the 6-decimal ERC-20 interface.
 - Explorer: testnet.arcscan.app
-- RPC: primary https://arc-testnet.drpc.org (dRPC's free public Arc Testnet gateway), with a fallback transport (https://rpc.testnet.arc.network) configured in frontend/wagmi-config.ts to handle rate limits on the public endpoint.
+- RPC: primary https://rpc.testnet.arc.io, fallback https://rpc.testnet.arc.network, configured in lib/arc.ts (single source of truth for the chain everywhere).
 - Nanopayments: built on @circle-fin/x402-batching, not the generic x402-foundation packages, since Arc support is specific to Circle's own Gateway-based implementation.
 
 ---
@@ -158,7 +174,7 @@ Node.js and React, Circle's Nanopayments and wallet tools for instant USDC payme
 | Layer | Technology |
 |---|---|
 | Backend | Node.js / TypeScript, Express |
-| Frontend | React, Vite, wagmi, viem |
+| Frontend | React, Vite, viem (EIP-6963 wallet discovery) |
 | Payments | @circle-fin/x402-batching (gasless Nanopayments) |
 | Wallets | @circle-fin/developer-controlled-wallets |
 | Price signals | Binance public klines API |
