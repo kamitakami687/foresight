@@ -5,20 +5,24 @@ import { ARC_CONFIG } from "../lib/arc.js";
 const REFUND_AMOUNT_USDC = "0.009"; // 90% of the $0.01 prediction fee
 const ESCROW_BLOCKCHAIN = "ARC-TESTNET";
 
-// Loaded dynamically (not a static top-level import) for two reasons:
-// Node's native ESM loader can't resolve this CJS package's named export
-// in Vercel's runtime (only `default`, i.e. the raw module.exports
-// object, is reliably interop'd), and deferring the import means a
-// Circle-side failure only breaks refundUser() instead of crashing the
-// whole server module on load.
+// Loaded dynamically (not a static top-level import) so a Circle-side
+// failure only breaks refundUser() instead of crashing the whole server
+// module on load. Named export: with "type": "module" import() resolves
+// to the ESM build, which has no `default` export.
 async function getClient() {
   const apiKey = process.env.CIRCLE_API_KEY;
   const entitySecret = process.env.CIRCLE_ENTITY_SECRET;
   if (!apiKey || !entitySecret) {
     throw new Error("Missing CIRCLE_API_KEY or CIRCLE_ENTITY_SECRET in .env");
   }
-  const { default: circleWallets } = await import("@circle-fin/developer-controlled-wallets");
-  return circleWallets.initiateDeveloperControlledWalletsClient({ apiKey, entitySecret });
+  const {
+    default: sdkDefault,
+    initiateDeveloperControlledWalletsClient,
+  } = await import("@circle-fin/developer-controlled-wallets");
+  const initClient =
+    initiateDeveloperControlledWalletsClient ??
+    sdkDefault?.initiateDeveloperControlledWalletsClient;
+  return initClient({ apiKey, entitySecret });
 }
 
 export async function refundUser(userAddress: string): Promise<{ txHash: string }> {

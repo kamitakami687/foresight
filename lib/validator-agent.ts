@@ -229,14 +229,20 @@ export async function giveFeedback(match: boolean): Promise<{ txHash: string }> 
     throw new Error("Missing CIRCLE_API_KEY or CIRCLE_ENTITY_SECRET in .env");
   }
 
-  // Loaded dynamically (not a static top-level import) for two reasons:
-  // Node's native ESM loader can't resolve this CJS package's named
-  // export in Vercel's runtime (only `default`, i.e. the raw
-  // module.exports object, is reliably interop'd), and deferring the
-  // import means a Circle-side failure only breaks giveFeedback()/
-  // /validate instead of crashing the whole server module on load.
-  const { default: circleWallets } = await import("@circle-fin/developer-controlled-wallets");
-  const client = circleWallets.initiateDeveloperControlledWalletsClient({ apiKey, entitySecret });
+  // Loaded dynamically (not a static top-level import) so a Circle-side
+  // failure only breaks giveFeedback()/validate instead of crashing the
+  // whole server module on load. Use the NAMED export: with "type":
+  // "module" the runtime resolves import() to the SDK's ESM build, which
+  // has no `default` export (named exports only) — destructuring
+  // `default` yields undefined and crashes at the call site.
+  const {
+    default: sdkDefault,
+    initiateDeveloperControlledWalletsClient,
+  } = await import("@circle-fin/developer-controlled-wallets");
+  const initClient =
+    initiateDeveloperControlledWalletsClient ??
+    sdkDefault?.initiateDeveloperControlledWalletsClient;
+  const client = initClient({ apiKey, entitySecret });
   const { value, tag1 } = feedbackFor(match);
 
   const txRes = await client.createContractExecutionTransaction({
