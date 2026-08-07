@@ -20,7 +20,6 @@
     "@circle-fin/app-kit": "^1.10.0",
     "@circle-fin/developer-controlled-wallets": "^10.8.0",
     "@circle-fin/x402-batching": "^3.2.0",
-    "@tanstack/react-query": "^5.101.2",
     "@x402/core": "^2.18.0",
     "@x402/evm": "^2.18.0",
     "cors": "^2.8.6",
@@ -28,8 +27,7 @@
     "express": "^5.2.1",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
-    "viem": "^2.55.2",
-    "wagmi": "^3.7.1"
+    "viem": "^2.55.2"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",

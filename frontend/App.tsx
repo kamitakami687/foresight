@@ -1,14 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
-import {
-  useAccount,
-  useConnect,
-  useDisconnect,
-  usePublicClient,
-  useWalletClient,
-} from "wagmi";
-import { injected } from "wagmi/connectors";
-import { getWalletClient } from "wagmi/actions";
-import { wagmiConfig } from "./wagmi-config.js";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { createPublicClient, createWalletClient, custom, formatUnits, http } from "viem";
+import { arcChain, ARC_CONFIG } from "../lib/arc.js";
 import { signGatewayPayment } from "../lib/gateway-signer.js";
 import type { GatewayPaymentRequirements } from "../lib/gateway-signer.js";
 import { detectAsset } from "../lib/analyst-agent.js";
@@ -18,6 +10,17 @@ import {
   getUsdcBalance,
   queryGatewayBalance,
 } from "../lib/gateway-deposit.js";
+
+// Minimal EIP-1193 shape for the legacy window.ethereum fallback (the
+// EIP-6963 store above is the primary source; window.ethereum is only used
+// when no wallet supports EIP-6963 — single-wallet browsers, like AnchorPay).
+declare global {
+  interface Window {
+    ethereum?: {
+      request(args: { method: string; params?: unknown[] }): Promise<unknown>;
+    };
+  }
+}
 
 const API_BASE = "/api";
 
@@ -125,12 +128,154 @@ function shortenAddress(addr: string): string {
   return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
 }
 
+function rpcErrorCode(err: unknown): number | undefined {
+  const e = err as { code?: unknown; cause?: { code?: unknown } };
+  const code = (e?.code ?? e?.cause?.code) as unknown;
+  return typeof code === "number" ? code : undefined;
+}
+
+// Raw EIP-6963 wallet store (the same pattern as the working AnchorPay dapp):
+// every wallet announces { info, provider } and we keep the RAW provider
+// object, so connect and the Arc switch go through the chosen wallet's own
+// provider — no wagmi connector wrapper in the path.
+type WalletDetail = {
+  info: { uuid: string; name: string; icon?: string; rdns?: string };
+  provider: {
+    request(args: { method: string; params?: unknown[] }): Promise<unknown>;
+    on?(event: string, fn: (...a: unknown[]) => void): void;
+    removeListener?(event: string, fn: (...a: unknown[]) => void): void;
+  };
+};
+
+const walletsStore = (() => {
+  let wallets: WalletDetail[] = [];
+  const listeners = new Set<() => void>();
+  window.addEventListener("eip6963:announceProvider", (e) => {
+    const { info, provider } = (e as CustomEvent).detail as {
+      info: WalletDetail["info"];
+      provider: WalletDetail["provider"];
+    };
+    if (!wallets.some((w) => w.info.uuid === info.uuid)) {
+      wallets = [...wallets, { info, provider }];
+      listeners.forEach((l) => l());
+    }
+  });
+  window.dispatchEvent(new Event("eip6963:requestProvider"));
+  return {
+    subscribe(l: () => void) {
+      listeners.add(l);
+      return () => {
+        listeners.delete(l);
+      };
+    },
+    getWallets: () => wallets,
+  };
+})();
+
+function useWallets(): WalletDetail[] {
+  const [wallets, setWallets] = useState(walletsStore.getWallets());
+  useEffect(
+    () =>
+      walletsStore.subscribe(() => {
+        setWallets(walletsStore.getWallets());
+      }),
+    []
+  );
+  return wallets;
+}
+
 export function App() {
-  const { address, isConnected } = useAccount();
-  const { connect } = useConnect();
-  const { disconnect } = useDisconnect();
-  const { data: walletClient } = useWalletClient();
-  const publicClient = usePublicClient();
+  const [wallet, setWallet] = useState<{
+    address: `0x${string}`;
+    chainId: number;
+    provider: WalletDetail["provider"];
+  } | null>(null);
+  const wallets = useWallets();
+  const address = wallet?.address ?? null;
+  const chainId = wallet?.chainId ?? null;
+  const isConnected = !!wallet;
+  const provider = wallet?.provider ?? null;
+  const [usdcBalance, setUsdcBalance] = useState<string | null>(null);
+
+  // Soft hint shown when the wallet isn't on Arc Testnet (auto-switch
+  // rejected by the user or unsupported by the wallet).
+  const [chainHint, setChainHint] = useState<string | null>(null);
+  // Wallet chooser (EIP-6963): open when several wallets are installed.
+  const [walletPickerOpen, setWalletPickerOpen] = useState(false);
+
+  // Diagnostic: dump every discovered wallet at page load AND whenever
+  // EIP-6963 discovery adds a new one — proves the list is dynamic.
+  useEffect(() => {
+    console.info(
+      "[wallets]",
+      wallets.map((w) => ({ name: w.info.name, rdns: w.info.rdns, uuid: w.info.uuid }))
+    );
+  }, [wallets]);
+
+  // Follow the connected provider's events (accountsChanged / chainChanged /
+  // disconnect) to keep the UI reactive without wagmi.
+  useEffect(() => {
+    if (!provider) return;
+    const onAccounts = (accs: unknown) =>
+      setWallet((w) =>
+        w
+          ? { ...w, address: ((accs as string[])[0] ?? "") as `0x${string}` }
+          : w
+      );
+    const onChain = (c: unknown) =>
+      setWallet((w) => (w ? { ...w, chainId: Number(c) } : w));
+    const onDisconnect = () => setWallet(null);
+    provider.on?.("accountsChanged", onAccounts);
+    provider.on?.("chainChanged", onChain);
+    provider.on?.("disconnect", onDisconnect);
+    return () => {
+      provider.removeListener?.("accountsChanged", onAccounts);
+      provider.removeListener?.("chainChanged", onChain);
+      provider.removeListener?.("disconnect", onDisconnect);
+    };
+  }, [provider]);
+
+  // viem clients — the same WalletClient/PublicClient wagmi used to provide.
+  const walletClient = useMemo(
+    () =>
+      address && provider
+        ? createWalletClient({
+            account: address as `0x${string}`,
+            chain: arcChain,
+            transport: custom(provider as never),
+          })
+        : undefined,
+    [address, provider]
+  );
+  const publicClient = useMemo(
+    () =>
+      createPublicClient({
+        chain: arcChain,
+        transport: http(arcChain.rpcUrls.default.http[0]),
+      }),
+    []
+  );
+
+  const disconnect = useCallback(() => setWallet(null), []);
+
+  // Wallet USDC balance on Arc (like ArcShift): shown next to the address.
+  useEffect(() => {
+    let cancelled = false;
+    if (!address) {
+      setUsdcBalance(null);
+      return;
+    }
+    getUsdcBalance(publicClient, address as `0x${string}`)
+      .then((b) => {
+        if (!cancelled) setUsdcBalance(formatUnits(b, ARC_CONFIG.usdcErc20Decimals));
+      })
+      .catch(() => {
+        if (!cancelled) setUsdcBalance(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [address, publicClient]);
 
   const [marketInput, setMarketInput] = useState("");
   const [predictions, setPredictions] = useState<
@@ -199,6 +344,108 @@ export function App() {
     }
   }, [isConnected, address, refreshGatewayBalance]);
 
+  // ----- Connect + Arc auto-switch, exactly like the working Arc dapps ----
+  // (AnchorPay): the RAW EIP-6963 provider the chosen wallet announced does
+  // eth_requestAccounts and wallet_switchEthereumChain itself — no wagmi, no
+  // connector wrapper, no window.ethereum. 4902 (chain not added yet) falls
+  // back to wallet_addEthereumChain with arcChain's official params.
+  async function connectWithConnector(w: WalletDetail) {
+    const p = w.provider;
+    console.info("[ArcChain] connecting with wallet:", w.info.name);
+    try {
+      const accounts = (await p.request({ method: "eth_requestAccounts" })) as string[];
+      if (!accounts?.[0]) {
+        console.warn("[ArcChain] no accounts returned");
+        return;
+      }
+      try {
+        await p.request({
+          method: "wallet_switchEthereumChain",
+          params: [{ chainId: `0x${arcChain.id.toString(16)}` }],
+        });
+      } catch (err) {
+        if (rpcErrorCode(err) === 4902) {
+          await p.request({
+            method: "wallet_addEthereumChain",
+            params: [
+              {
+                chainId: `0x${arcChain.id.toString(16)}`,
+                chainName: arcChain.name,
+                nativeCurrency: arcChain.nativeCurrency,
+                rpcUrls: [arcChain.rpcUrls.default.http[0]],
+                blockExplorerUrls: [arcChain.blockExplorers?.default?.url].filter(Boolean),
+              },
+            ],
+          });
+        }
+      }
+      const chain = Number(await p.request({ method: "eth_chainId" }));
+      setWallet({ address: accounts[0] as `0x${string}`, chainId: chain, provider: p });
+      setChainHint(null);
+    } catch (err) {
+      console.warn("[ArcChain] connect failed:", err);
+    }
+  }
+
+  // EIP-6963-discovered wallets: every wallet that announced itself
+  // (MetaMask, Rabby, Coinbase, OKX, Phantom, ...) is selectable — dynamic,
+  // no hardcoding, new wallets appear automatically.
+  const walletOptions = wallets;
+
+  async function handleConnectClick() {
+    console.info("[ArcChain] Connect clicked");
+    // No EIP-6963 wallet at all -> legacy fallback to window.ethereum
+    // (single-wallet browsers), exactly like AnchorPay.
+    if (wallets.length === 0 && window.ethereum) {
+      await connectWithConnector({
+        info: { uuid: "legacy", name: "Injected Wallet", rdns: undefined },
+        provider: window.ethereum as unknown as WalletDetail["provider"],
+      });
+      return;
+    }
+    // Wallet chooser: a single detected wallet connects straight away;
+    // several wallets -> the picker lists exactly the discovered ones
+    // (name/icon from EIP-6963 metadata), and the Arc auto-switch targets
+    // the wallet the user picked.
+    if (walletOptions.length === 1) {
+      await connectWithConnector(walletOptions[0]);
+    } else {
+      setWalletPickerOpen(true);
+    }
+  }
+
+  // Guarantee the wallet is on Arc Testnet before any on-chain write.
+  // Returns true when it is safe to proceed. Used by deposit and predict.
+  async function ensureArcForTx(): Promise<boolean> {
+    if (chainId === arcChain.id) return true;
+    if (!provider) return false;
+    try {
+      await provider.request({
+        method: "wallet_switchEthereumChain",
+        params: [{ chainId: `0x${arcChain.id.toString(16)}` }],
+      });
+      return true;
+    } catch (err) {
+      if (rpcErrorCode(err) === 4902) {
+        await provider.request({
+          method: "wallet_addEthereumChain",
+          params: [
+            {
+              chainId: `0x${arcChain.id.toString(16)}`,
+              chainName: arcChain.name,
+              nativeCurrency: arcChain.nativeCurrency,
+              rpcUrls: [arcChain.rpcUrls.default.http[0]],
+              blockExplorerUrls: [arcChain.blockExplorers?.default?.url].filter(Boolean),
+            },
+          ],
+        });
+        return true;
+      }
+      setChainHint("Switch to Arc Testnet in your wallet to continue.");
+      return false;
+    }
+  }
+
   async function handleDeposit() {
     if (!isConnected || !address || !publicClient) {
       setDepositStatus("error");
@@ -206,9 +453,18 @@ export function App() {
       return;
     }
 
-    // Same lazy-fetch as handlePredict: after reload useAccount() is
-    // hydrated while useWalletClient() may still be undefined.
-    const client = walletClient ?? (await getWalletClient(wagmiConfig));
+    // Switch the wallet to Arc Testnet FIRST — the wallet client is created
+    // for Arc, and the payment flow assumes the wallet is on Arc.
+    const onArc = await ensureArcForTx();
+    if (!onArc) {
+      setDepositStatus("error");
+      setDepositError(
+        "Deposit requires Arc Testnet — approve the network switch in your wallet."
+      );
+      return;
+    }
+
+    const client = walletClient;
     if (!client) {
       setDepositStatus("error");
       setDepositError("Wallet client not ready, reconnect your wallet");
@@ -265,11 +521,18 @@ export function App() {
       return;
     }
 
-    // useWalletClient() is an async React Query — right after a page
-    // reload/reconnect useAccount() already reports the address while
-    // the wallet client is still loading (or failed). Fetch it lazily
-    // instead of gating on the hook's possibly-stale undefined value.
-    const client = walletClient ?? (await getWalletClient(wagmiConfig));
+    // Same guarantee as deposit: the x402 signature and payment flow assume
+    // Arc Testnet. Ensure the wallet is on Arc before proceeding.
+    const onArc = await ensureArcForTx();
+    if (!onArc) {
+      updateEntry(duration, {
+        status: "error",
+        error: "Predictions require Arc Testnet — approve the network switch in your wallet.",
+      });
+      return;
+    }
+
+    const client = walletClient;
     if (!client) {
       updateEntry(duration, {
         status: "error",
@@ -433,19 +696,71 @@ export function App() {
         </div>
 
         {!isConnected ? (
-          <button className="btn-connect" onClick={() => connect({ connector: injected() })}>
+          <button className="btn-connect" onClick={handleConnectClick}>
             Connect Wallet
           </button>
         ) : (
-          <div className="wallet-badge">
-            <span className="wallet-dot" />
-            <span className="wallet-address">{shortenAddress(address!)}</span>
-            <button className="btn btn-ghost btn-sm" onClick={() => disconnect()}>
-              Disconnect
-            </button>
-          </div>
+          <>
+            <div className="wallet-badge">
+              <span className="wallet-dot" />
+              <span className="wallet-address">{shortenAddress(address!)}</span>
+              {usdcBalance && <span className="wallet-usdc">USDC {usdcBalance}</span>}
+              <button className="btn btn-ghost btn-sm" onClick={() => disconnect()}>
+                Disconnect
+              </button>
+            </div>
+            <span
+              className={`chain-badge ${
+                chainId === arcChain.id ? "chain-badge-ok" : "chain-badge-warn"
+              }`}
+              title={`Wallet chain: ${chainId ?? "unknown"}`}
+            >
+              {chainId === arcChain.id
+                ? "Arc Testnet"
+                : chainId
+                  ? `Chain ${chainId}`
+                  : "Chain …"}
+            </span>
+          </>
         )}
       </header>
+
+      {chainHint && (
+        <div className="chain-hint" role="status">
+          {chainHint}
+        </div>
+      )}
+
+      {walletPickerOpen && (
+        <div className="wallet-picker-overlay" onClick={() => setWalletPickerOpen(false)}>
+          <div className="wallet-picker" onClick={(e) => e.stopPropagation()}>
+            <h3 className="wallet-picker-title">Connect a wallet</h3>
+            {walletOptions.length === 0 && (
+              <p className="wallet-picker-empty">No wallet detected</p>
+            )}
+            {walletOptions.map((w) => (
+              <button
+                key={w.info.uuid}
+                className="wallet-picker-item"
+                onClick={() => {
+                  setWalletPickerOpen(false);
+                  void connectWithConnector(w);
+                }}
+              >
+                {w.info.icon ? (
+                  <img src={w.info.icon} alt="" className="wallet-picker-icon" />
+                ) : (
+                  <span className="wallet-picker-icon wallet-picker-icon-fallback">🔗</span>
+                )}
+                <span>{w.info.name}</span>
+              </button>
+            ))}
+            <button className="wallet-picker-cancel" onClick={() => setWalletPickerOpen(false)}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       <main className="main">
         {/* Market Input */}
