@@ -2,7 +2,7 @@
 
 ![Foresight logo](logo.jpg)
 
-# Website: https://foresight-predict.vercel.app/
+Website: https://foresight-predict.vercel.app/
 
 Foresight is a prediction app built on Arc Testnet, using USDC for gas payments. Powered by an autonomous AI agent that makes 5 min, 15 min, 1 hour, and 4 hour BTC and ETH predictions, gets paid, and refunds the user 90% when wrong.
 
