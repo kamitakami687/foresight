@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPublicClient, createWalletClient, custom, formatUnits, http } from "viem";
 import { arcChain, ARC_CONFIG } from "../lib/arc.js";
 import { signGatewayPayment } from "../lib/gateway-signer.js";
@@ -24,6 +24,10 @@ declare global {
 }
 
 const API_BASE = "/api";
+
+// LocalStorage key remembering the last connected EIP-6963 wallet (uuid),
+// so the session survives a page reload without re-picking the wallet.
+const STORAGE_WALLET_KEY = "foresight:wallet-uuid";
 
 const DURATION_BUTTONS: { key: DurationKey; label: string }[] = [
   { key: "5m", label: "5 Min" },
@@ -129,9 +133,23 @@ function shortenAddress(addr: string): string {
   return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
 }
 
+// Extract an RPC error code from any shape a wallet may throw it in.
+// MetaMask (and some other wallets) wrap the original error deep inside
+// the response: { code: -32603, data: { originalError: { code: 4902 } } }.
+// The working ArcZode dapp checks exactly this nesting — mirror it:
+//   err.code === 4902
+//   err.data?.originalError?.code === 4902
+//   err.cause?.code === 4902
 function rpcErrorCode(err: unknown): number | undefined {
-  const e = err as { code?: unknown; cause?: { code?: unknown } };
-  const code = (e?.code ?? e?.cause?.code) as unknown;
+  const e = err as {
+    code?: unknown;
+    cause?: { code?: unknown };
+    data?: { originalError?: { code?: unknown } };
+  };
+  const code =
+    e?.code ??
+    e?.data?.originalError?.code ??
+    e?.cause?.code;
   return typeof code === "number" ? code : undefined;
 }
 
@@ -185,6 +203,32 @@ function useWallets(): WalletDetail[] {
   return wallets;
 }
 
+// Restore the wallet session after a page reload: EIP-6963 providers
+// announce asynchronously, so wait until the saved wallet shows up in the
+// store, then reconnect through the normal connect path (which re-requests
+// accounts and re-checks the Arc network).
+function useAutoReconnect(connect: (w: WalletDetail) => void): void {
+  useEffect(() => {
+    const savedUuid = localStorage.getItem(STORAGE_WALLET_KEY);
+    if (!savedUuid) return;
+    let unsub: (() => void) | undefined;
+    const tryRestore = () => {
+      const saved = walletsStore
+        .getWallets()
+        .find((w) => w.info.uuid === savedUuid);
+      if (!saved) return; // not announced yet — keep waiting
+      unsub?.();
+      void connect(saved);
+    };
+    tryRestore();
+    unsub = walletsStore.subscribe(tryRestore);
+    return () => {
+      unsub?.();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+}
+
 export function App() {
   const [wallet, setWallet] = useState<{
     address: `0x${string}`;
@@ -227,7 +271,10 @@ export function App() {
       );
     const onChain = (c: unknown) =>
       setWallet((w) => (w ? { ...w, chainId: Number(c) } : w));
-    const onDisconnect = () => setWallet(null);
+    const onDisconnect = () => {
+      localStorage.removeItem(STORAGE_WALLET_KEY);
+      setWallet(null);
+    };
     provider.on?.("accountsChanged", onAccounts);
     provider.on?.("chainChanged", onChain);
     provider.on?.("disconnect", onDisconnect);
@@ -259,7 +306,10 @@ export function App() {
     []
   );
 
-  const disconnect = useCallback(() => setWallet(null), []);
+  const disconnect = useCallback(() => {
+    localStorage.removeItem(STORAGE_WALLET_KEY);
+    setWallet(null);
+  }, []);
 
   // Wallet USDC balance on Arc (like ArcShift): shown next to the address.
   useEffect(() => {
@@ -352,41 +402,99 @@ export function App() {
   // eth_requestAccounts and wallet_switchEthereumChain itself — no wagmi, no
   // connector wrapper, no window.ethereum. 4902 (chain not added yet) falls
   // back to wallet_addEthereumChain with arcChain's official params.
+  //
+  // MetaMask notes (mirroring the working ArcZode dapp):
+  // - 4902 may arrive wrapped as data.originalError.code — rpcErrorCode
+  //   digs through that nesting.
+  // - After wallet_addEthereumChain MetaMask's own prompt offers "Switch to
+  //   this network"; issuing a second wallet_switchEthereumChain right after
+  //   add races that prompt and gets rejected as already pending (-32002),
+  //   which hangs the connect. So after add we only verify the chain id.
+  // Guard against overlapping connect attempts: MetaMask rejects a second
+  // eth_requestAccounts while the first is still pending (-32002), which
+  // surfaces as an unhandled inpage.js rejection and a silently hanging
+  // connect. Skip the new attempt while one is already in flight.
+  const connectInFlight = useRef(false);
+
+  async function switchToArc(p: WalletDetail["provider"]): Promise<boolean> {
+    const chainIdHex = `0x${arcChain.id.toString(16)}`;
+    console.info("[ArcChain] switchToArc: requesting", chainIdHex);
+    try {
+      await p.request({
+        method: "wallet_switchEthereumChain",
+        params: [{ chainId: chainIdHex }],
+      });
+      console.info("[ArcChain] switchToArc: switch ok");
+      return true;
+    } catch (err) {
+      const code = rpcErrorCode(err);
+      console.warn("[ArcChain] switchToArc: switch error code", code, err);
+      if (code !== 4902) return false;
+      console.info("[ArcChain] switchToArc: chain missing, calling addEthereumChain");
+      try {
+        await p.request({
+          method: "wallet_addEthereumChain",
+          params: [
+            {
+              chainId: chainIdHex,
+              chainName: arcChain.name,
+              nativeCurrency: arcChain.nativeCurrency,
+              rpcUrls: [arcChain.rpcUrls.default.http[0]],
+              blockExplorerUrls: [arcChain.blockExplorers?.default?.url].filter(Boolean),
+            },
+          ],
+        });
+        console.info("[ArcChain] switchToArc: add ok");
+      } catch (addErr) {
+        console.warn("[ArcChain] switchToArc: add error", addErr);
+        return false;
+      }
+      // The addEthereumChain prompt in MetaMask itself offers "Switch to
+      // this network" — issuing another wallet_switchEthereumChain right
+      // after add races that prompt and MetaMask rejects it as already
+      // pending (-32002), hanging the connect. The working ArcZode dapp
+      // only adds and then verifies the chain id — mirror that.
+      const chain = Number(await p.request({ method: "eth_chainId" }));
+      console.info("[ArcChain] switchToArc: chainId after add:", chain);
+      return chain === arcChain.id;
+    }
+  }
+
   async function connectWithConnector(w: WalletDetail) {
+    if (connectInFlight.current) {
+      console.warn("[ArcChain] connect already in flight, skipping", w.info.name);
+      return;
+    }
+    connectInFlight.current = true;
     const p = w.provider;
     console.info("[ArcChain] connecting with wallet:", w.info.name);
     try {
       const accounts = (await p.request({ method: "eth_requestAccounts" })) as string[];
+      console.info("[ArcChain] accounts:", accounts?.[0]);
       if (!accounts?.[0]) {
         console.warn("[ArcChain] no accounts returned");
         return;
       }
-      try {
-        await p.request({
-          method: "wallet_switchEthereumChain",
-          params: [{ chainId: `0x${arcChain.id.toString(16)}` }],
-        });
-      } catch (err) {
-        if (rpcErrorCode(err) === 4902) {
-          await p.request({
-            method: "wallet_addEthereumChain",
-            params: [
-              {
-                chainId: `0x${arcChain.id.toString(16)}`,
-                chainName: arcChain.name,
-                nativeCurrency: arcChain.nativeCurrency,
-                rpcUrls: [arcChain.rpcUrls.default.http[0]],
-                blockExplorerUrls: [arcChain.blockExplorers?.default?.url].filter(Boolean),
-              },
-            ],
-          });
-        }
-      }
+      await switchToArc(p);
       const chain = Number(await p.request({ method: "eth_chainId" }));
+      console.info("[ArcChain] connected, chainId:", chain);
       setWallet({ address: accounts[0] as `0x${string}`, chainId: chain, provider: p });
-      setChainHint(null);
+      // Remember the wallet so the session survives a page reload.
+      localStorage.setItem(STORAGE_WALLET_KEY, w.info.uuid);
+      if (chain === arcChain.id) {
+        setChainHint(null);
+      } else {
+        // The wallet refused the switch (or the add prompt was dismissed):
+        // connect anyway but tell the user exactly what to do next.
+        setChainHint(
+          `Connected, but the wallet is on chain ${chain} — not Arc Testnet (${arcChain.id}). ` +
+            `Open your wallet and switch to "Arc Testnet" manually, or reconnect.`
+        );
+      }
     } catch (err) {
       console.warn("[ArcChain] connect failed:", err);
+    } finally {
+      connectInFlight.current = false;
     }
   }
 
@@ -394,6 +502,9 @@ export function App() {
   // (MetaMask, Rabby, Coinbase, OKX, Phantom, ...) is selectable — dynamic,
   // no hardcoding, new wallets appear automatically.
   const walletOptions = wallets;
+
+  // Restore the previous session after a page reload (saved wallet uuid).
+  useAutoReconnect(connectWithConnector);
 
   async function handleConnectClick() {
     console.info("[ArcChain] Connect clicked");
@@ -423,31 +534,55 @@ export function App() {
     if (chainId === arcChain.id) return true;
     if (!provider) return false;
     try {
-      await provider.request({
-        method: "wallet_switchEthereumChain",
-        params: [{ chainId: `0x${arcChain.id.toString(16)}` }],
-      });
+      const switched = await switchToArc(provider);
+      if (!switched) {
+        setChainHint(
+          `Wrong network: chain ${chainId ?? "unknown"}, expected Arc Testnet (${arcChain.id}).`
+        );
+        return false;
+      }
+      const chain = Number(await provider.request({ method: "eth_chainId" }));
+      if (chain !== arcChain.id) {
+        setChainHint(
+          `Wrong network: chain ${chain}, expected Arc Testnet (${arcChain.id}).`
+        );
+        return false;
+      }
+      setWallet((w) => (w ? { ...w, chainId: chain } : w));
+      setChainHint(null);
       return true;
     } catch (err) {
       if (rpcErrorCode(err) === 4902) {
-        await provider.request({
-          method: "wallet_addEthereumChain",
-          params: [
-            {
-              chainId: `0x${arcChain.id.toString(16)}`,
-              chainName: arcChain.name,
-              nativeCurrency: arcChain.nativeCurrency,
-              rpcUrls: [arcChain.rpcUrls.default.http[0]],
-              blockExplorerUrls: [arcChain.blockExplorers?.default?.url].filter(Boolean),
-            },
-          ],
-        });
-        return true;
+        // addEthereumChain succeeded but the user rejected the follow-up
+        // switch (or the wallet refused) — surface the soft hint.
+        setChainHint(
+          `Arc Testnet was added to your wallet but not activated. Switch to it manually (chain id ${arcChain.id}).`
+        );
+      } else {
+        setChainHint(
+          `Wrong network: chain ${chainId ?? "unknown"}, expected Arc Testnet (${arcChain.id}).`
+        );
       }
-      setChainHint(
-        `Wrong network: chain ${chainId ?? "unknown"}, expected Arc Testnet (${arcChain.id}).`
-      );
       return false;
+    }
+  }
+
+  // Manual "Switch to Arc Testnet" action from the chain-hint banner:
+  // re-runs the same switch flow as connect (4902 → add) and clears the
+  // hint when the wallet confirms it is on Arc.
+  async function handleSwitchToArcClick() {
+    if (!provider) return;
+    console.info("[ArcChain] manual switch to Arc clicked");
+    const ok = await switchToArc(provider);
+    const chain = Number(await provider.request({ method: "eth_chainId" }));
+    setWallet((w) => (w ? { ...w, chainId: chain } : w));
+    if (ok && chain === arcChain.id) {
+      setChainHint(null);
+    } else {
+      setChainHint(
+        `Still on chain ${chain}, expected Arc Testnet (${arcChain.id}). ` +
+          `Open your wallet and switch to "Arc Testnet" manually.`
+      );
     }
   }
 
@@ -792,7 +927,12 @@ export function App() {
 
       {chainHint && (
         <div className="chain-hint" role="status">
-          {chainHint}
+          <span>{chainHint}</span>
+          {provider && (
+            <button className="chain-hint-btn" onClick={handleSwitchToArcClick}>
+              Switch to Arc Testnet
+            </button>
+          )}
         </div>
       )}
 

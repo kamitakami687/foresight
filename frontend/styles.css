@@ -970,6 +970,28 @@ body {
   color: var(--accent-amber);
   font-size: 13px;
   text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.chain-hint-btn {
+  background: var(--accent-cyan);
+  color: var(--cyan-ink);
+  border: none;
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.chain-hint-btn:hover {
+  background: #67e8f9;
+  box-shadow: 0 0 12px rgba(34, 211, 238, 0.35);
 }
 
 /* Wallet network badge in the header (visible diagnostics). */
