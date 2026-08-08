@@ -22,7 +22,7 @@ Foresight has four wallets, each with one clear job.
 
 - **Seller** is where the $0.01 payment first lands when someone pays for a prediction.
 - **Escrow** is where that money actually ends up living, it either keeps the $0.01 if the prediction was right, or sends 90% of it back if the prediction was wrong.
-- **Validator** is the AI agent's onchain identity, like a name tag proving the agent is a real, trackable thing, not invisible code.
+- **Validator** is the wallet that holds the AI agent's onchain identity (ERC-8004, agent ID 851687) — a name tag proving the agent is a real, trackable thing, not invisible code.
 - **Reporter** is a separate wallet that writes down, permanently, whether each prediction the Validator checked was correct or wrong, so anyone can look up its real track record.
 
 ### Technical breakdown
