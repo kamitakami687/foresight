@@ -704,22 +704,6 @@ export function App() {
             </linearGradient>
           </defs>
           <rect width="1440" height="900" fill="url(#bg-fade)" />
-          <path
-            className="ma-line ma-white"
-            d="M0,350 C110,335 210,370 320,345 C430,320 520,345 630,325 C740,305 830,325 940,310 C1050,295 1140,315 1240,305 C1340,295 1400,305 1440,300"
-          />
-          <path
-            className="ma-line ma-cyan"
-            d="M0,520 C100,500 180,550 280,510 C380,470 460,490 560,455 C660,420 740,445 840,420 C940,395 1020,420 1120,400 C1220,380 1300,400 1440,390"
-          />
-          <path
-            className="ma-line ma-sky"
-            d="M0,470 C110,455 200,495 310,465 C420,435 500,455 610,430 C720,405 800,425 910,405 C1020,385 1100,400 1210,385 C1320,370 1380,380 1440,375"
-          />
-          <path
-            className="ma-line ma-gold"
-            d="M0,580 C120,565 230,590 350,560 C470,530 570,550 690,525 C810,500 900,520 1020,500 C1140,480 1230,495 1350,480 C1400,475 1420,470 1440,465"
-          />
         </svg>
       </div>
 
@@ -727,7 +711,7 @@ export function App() {
         <div className="header-left">
           <img src={eyeUrl} alt="Foresight" className="header-logo" />
           <span className="logo">Foresight</span>
-          <span className="logo-sub">AI Prediction Markets</span>
+          <span className="logo-sub">AI Powered Prediction Markets</span>
           <nav className="header-nav">
             <button
               className={`nav-link ${view === "home" ? "nav-link-active" : ""}`}

@@ -2,30 +2,31 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
 
 :root {
-  /* Colors */
-  --bg-primary: #0a0b0e;
-  --bg-secondary: #111318;
-  --bg-card: #16181e;
-  --bg-card-hover: #1c1f26;
-  --bg-elevated: #1e212a;
-  --border-subtle: #262933;
-  --border-medium: #333744;
-  --text-primary: #e8eaed;
-  --text-secondary: #9aa0ab;
-  --text-tertiary: #6b7280;
-  --accent-blue: #3b82f6;
-  --accent-blue-glow: rgba(59, 130, 246, 0.25);
+  /* Colors — Variant A "Cyan Arc" (ArcZode family) */
+  --bg-primary: #050a0e;
+  --bg-secondary: #0a1322;
+  --bg-card: rgba(15, 23, 42, 0.6);
+  --bg-card-hover: rgba(23, 33, 56, 0.72);
+  --bg-elevated: rgba(30, 41, 59, 0.75);
+  --border-subtle: #1e293b;
+  --border-medium: #334155;
+  --text-primary: #ffffff;
+  --text-secondary: #94a3b8;
+  --text-tertiary: #64748b;
   --accent-cyan: #22d3ee;
   --accent-green: #22c55e;
   --accent-green-dim: rgba(34, 197, 94, 0.12);
   --accent-red: #ef4444;
   --accent-red-dim: rgba(239, 68, 68, 0.12);
   --accent-amber: #f59e0b;
-  --accent-purple: #a855f7;
+  --accent-amber-dim: rgba(245, 158, 11, 0.12);
+  --accent-amber-border: rgba(245, 158, 11, 0.35);
   /* Brand palette (logo eye): gold + sky */
   --gold: #e8d5a3;
   --gold-deep: #d4b96a;
+  --cyan-ink: #04121a;
   --sky: #5b9bd5;
+  --cyan-glow: rgba(34, 211, 238, 0.25);
 
   /* Spacing */
   --space-xs: 0.25rem;
@@ -44,7 +45,7 @@
   /* Shadows */
   --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
   --shadow-elevated: 0 4px 12px rgba(0, 0, 0, 0.4), 0 2px 4px rgba(0, 0, 0, 0.3);
-  --shadow-glow-blue: 0 0 20px rgba(59, 130, 246, 0.15);
+  --shadow-glow-cyan: 0 0 20px rgba(34, 211, 238, 0.25);
 }
 
 /* ===== Reset & Base ===== */
@@ -62,7 +63,10 @@ html {
 
 body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  background: var(--bg-primary);
+  background:
+    radial-gradient(ellipse 80% 55% at 18% -5%, rgba(34, 211, 238, 0.07), transparent 60%),
+    radial-gradient(ellipse 70% 50% at 85% 110%, rgba(232, 213, 163, 0.05), transparent 60%),
+    var(--bg-primary);
   color: var(--text-primary);
   min-height: 100vh;
   line-height: 1.5;
@@ -88,7 +92,7 @@ body {
   justify-content: space-between;
   padding: var(--space-md) var(--space-xl);
   border-bottom: 1px solid var(--border-subtle);
-  background: rgba(17, 19, 24, 0.82);
+  background: rgba(10, 19, 34, 0.82);
   backdrop-filter: blur(4px);
 }
 
@@ -102,7 +106,7 @@ body {
   font-size: 1.5rem;
   font-weight: 800;
   letter-spacing: -0.03em;
-  background: linear-gradient(135deg, var(--accent-blue), var(--accent-cyan));
+  background: linear-gradient(135deg, var(--accent-cyan), #ffffff);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -144,14 +148,15 @@ body {
 }
 
 .btn-primary {
-  background: var(--accent-blue);
-  color: white;
-  border-color: var(--accent-blue);
+  background: var(--accent-cyan);
+  color: var(--cyan-ink);
+  border-color: var(--accent-cyan);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: #2563eb;
-  box-shadow: var(--shadow-glow-blue);
+  background: #67e8f9;
+  border-color: #67e8f9;
+  box-shadow: var(--shadow-glow-cyan);
 }
 
 .btn-secondary {
@@ -162,7 +167,7 @@ body {
 
 .btn-secondary:hover:not(:disabled) {
   background: var(--bg-card-hover);
-  border-color: var(--accent-blue);
+  border-color: var(--accent-cyan);
 }
 
 .btn-ghost {
@@ -199,8 +204,8 @@ body {
 
 /* Connect wallet button special */
 .btn-connect {
-  background: linear-gradient(135deg, var(--accent-blue), #6366f1);
-  color: white;
+  background: linear-gradient(135deg, #67e8f9, var(--accent-cyan));
+  color: var(--cyan-ink);
   border: none;
   padding: 0.5rem 1.5rem;
   font-weight: 600;
@@ -211,7 +216,7 @@ body {
 }
 
 .btn-connect:hover {
-  box-shadow: 0 0 24px rgba(59, 130, 246, 0.3);
+  box-shadow: 0 0 24px rgba(34, 211, 238, 0.4);
   transform: translateY(-1px);
 }
 
@@ -289,8 +294,8 @@ body {
 }
 
 .market-input:focus {
-  border-color: var(--accent-blue);
-  box-shadow: 0 0 0 3px var(--accent-blue-glow);
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 0 3px var(--cyan-glow);
 }
 
 /* ===== Prediction Grid ===== */
@@ -315,15 +320,22 @@ body {
 
 /* ===== Prediction Card ===== */
 .prediction-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
+  border: 1px solid transparent;
   border-radius: var(--radius-md);
   overflow: hidden;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  /* Glass card + thin gradient border, cyan → gold (ArcZode trick). */
+  background:
+    linear-gradient(var(--bg-card), var(--bg-card)) padding-box,
+    linear-gradient(135deg, rgba(34, 211, 238, 0.55), rgba(232, 213, 163, 0.55)) border-box;
 }
 
 .prediction-card:hover {
-  border-color: var(--border-medium);
+  border-color: transparent;
+  background:
+    linear-gradient(var(--bg-card-hover), var(--bg-card-hover)) padding-box,
+    linear-gradient(135deg, rgba(34, 211, 238, 0.8), rgba(232, 213, 163, 0.8)) border-box;
+  box-shadow: 0 0 24px rgba(34, 211, 238, 0.12);
 }
 
 .prediction-card-header {
@@ -460,7 +472,7 @@ body {
   width: 24px;
   height: 24px;
   border: 2px solid var(--border-medium);
-  border-top-color: var(--accent-blue);
+  border-top-color: var(--accent-cyan);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -485,7 +497,7 @@ body {
 /* ===== Details ===== */
 .details-toggle {
   font-size: 0.75rem;
-  color: var(--accent-blue);
+  color: var(--accent-cyan);
   background: none;
   border: none;
   cursor: pointer;
@@ -525,8 +537,10 @@ body {
 
 /* ===== Deposit Section ===== */
 .deposit-section {
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
+  background:
+    linear-gradient(var(--bg-card), var(--bg-card)) padding-box,
+    linear-gradient(135deg, rgba(34, 211, 238, 0.55), rgba(232, 213, 163, 0.55)) border-box;
+  border: 1px solid transparent;
   border-radius: var(--radius-md);
   padding: var(--space-lg);
   max-width: 500px;
@@ -573,7 +587,7 @@ body {
 }
 
 .deposit-input:focus {
-  border-color: var(--accent-blue);
+  border-color: var(--accent-cyan);
 }
 
 .deposit-input:disabled {
@@ -615,7 +629,7 @@ body {
 }
 
 .deposit-message a {
-  color: var(--accent-blue);
+  color: var(--accent-cyan);
   text-decoration: underline;
 }
 
@@ -629,18 +643,11 @@ body {
   margin-top: auto;
 }
 
-/* ===== Brand palette & header (logo-driven) ===== */
+/* Brand palette & header (logo-driven) */
 .header-logo {
   height: 34px;
   width: auto;
   display: inline-block;
-}
-
-.logo {
-  background: linear-gradient(135deg, var(--gold-deep), var(--gold));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
 }
 
 .header-right {
@@ -661,7 +668,7 @@ body {
   background: none;
   border: none;
   padding: 0.25rem 0;
-  color: var(--sky);
+  color: var(--text-secondary);
   font-family: inherit;
   font-size: 0.85rem;
   font-weight: 600;
@@ -671,12 +678,12 @@ body {
 }
 
 .nav-link:hover {
-  color: var(--gold);
+  color: var(--accent-cyan);
 }
 
 .nav-link-active {
-  color: var(--gold);
-  border-bottom: 2px solid var(--gold-deep);
+  color: var(--accent-cyan);
+  border-bottom: 2px solid var(--accent-cyan);
   padding-bottom: 0.15rem;
 }
 
@@ -686,19 +693,20 @@ body {
   gap: var(--space-sm);
 }
 
-/* Gold labels / headings / footer, bright-blue timeframe titles. */
+/* Gold labels / headings / footer — brand voice. */
 .market-label,
 .stats-panel h2,
 .stat-label,
-.footer {
+.footer,
+.logo-sub,
+.deposit-section-title,
+.prediction-card-title {
   color: var(--gold);
 }
 
-/* Bright-cyan accents: stat numbers, tagline, Gateway heading. */
-.stat-value,
-.logo-sub,
-.deposit-section-title {
-  color: var(--accent-cyan);
+/* Bright-cyan accents: live data only — stat numbers, balances, badge. */
+.stat-value {
+  color: var(--gold);
 }
 
 /* AMOUNT / GATEWAY BALANCE labels back to white. */
@@ -750,7 +758,7 @@ body {
   border-color: var(--accent-red);
 }
 
-/* Moving-averages background: generated SVG, behind all content. */
+/* Background gradient layer: deep navy → black, behind all content. */
 .bg-chart {
   position: fixed;
   inset: 0;
@@ -764,60 +772,6 @@ body {
   height: 100%;
 }
 
-.ma-line {
-  fill: none;
-  stroke-width: 1.2;
-  opacity: 0.08;
-}
-
-.ma-cyan {
-  stroke: #22d3ee;
-  filter: drop-shadow(0 0 6px rgba(34, 211, 238, 0.25));
-}
-
-.ma-sky {
-  stroke: #5b9bd5;
-  filter: drop-shadow(0 0 6px rgba(91, 155, 213, 0.25));
-}
-
-.ma-gold {
-  stroke: #e8d5a3;
-  filter: drop-shadow(0 0 6px rgba(232, 213, 163, 0.25));
-}
-
-.ma-white {
-  stroke: #ffffff;
-  filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.2));
-}
-
-/* Slow horizontal drift (45s cycle) — GPU transform only. */
-.ma-line {
-  animation: maDrift 45s ease-in-out infinite alternate;
-}
-
-.ma-line:nth-child(2) {
-  animation-delay: -15s;
-}
-
-.ma-line:nth-child(3) {
-  animation-delay: -30s;
-}
-
-@keyframes maDrift {
-  from {
-    transform: translateX(-16px);
-  }
-  to {
-    transform: translateX(16px);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .ma-line {
-    animation: none;
-  }
-}
-
 /* Keep content above the background layer. */
 .app > :not(.bg-chart) {
   position: relative;
@@ -825,7 +779,7 @@ body {
 }
 
 .prediction-card-title {
-  color: var(--accent-cyan);
+  color: var(--gold);
 }
 
 .prediction-grid {
@@ -878,8 +832,10 @@ body {
 }
 
 .info-highlight {
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
+  background:
+    linear-gradient(var(--bg-card), var(--bg-card)) padding-box,
+    linear-gradient(135deg, rgba(34, 211, 238, 0.5), rgba(232, 213, 163, 0.5)) border-box;
+  border: 1px solid transparent;
   border-radius: 8px;
   padding: 10px 12px;
   font-size: 0.84rem;
@@ -952,8 +908,10 @@ body {
 
 .stat-cell {
   flex: 1 1 140px;
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
+  background:
+    linear-gradient(var(--bg-card), var(--bg-card)) padding-box,
+    linear-gradient(135deg, rgba(34, 211, 238, 0.5), rgba(232, 213, 163, 0.5)) border-box;
+  border: 1px solid transparent;
   border-radius: 10px;
   padding: 14px;
   display: flex;
@@ -1007,9 +965,9 @@ body {
   max-width: 640px;
   padding: 8px 14px;
   border-radius: 8px;
-  background: var(--accent-amber-dim, rgba(245, 158, 11, 0.12));
-  border: 1px solid rgba(245, 158, 11, 0.35);
-  color: #fbbf24;
+  background: var(--accent-amber-dim);
+  border: 1px solid var(--accent-amber-border);
+  color: var(--accent-amber);
   font-size: 13px;
   text-align: center;
 }
@@ -1046,8 +1004,8 @@ body {
   z-index: 100;
 }
 .wallet-picker {
-  background: var(--card-bg, #161b22);
-  border: 1px solid var(--border, #30363d);
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
   border-radius: 12px;
   padding: 18px;
   min-width: 260px;
@@ -1061,7 +1019,7 @@ body {
 .wallet-picker-empty {
   margin: 0 0 12px;
   font-size: 13px;
-  color: var(--text-tertiary, #8b949e);
+  color: var(--text-tertiary);
 }
 .wallet-picker-item {
   display: flex;
@@ -1071,14 +1029,14 @@ body {
   padding: 10px 12px;
   margin-bottom: 8px;
   border-radius: 8px;
-  border: 1px solid var(--border, #30363d);
-  background: var(--bg, #0d1117);
-  color: var(--text-primary, #e6edf3);
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
   font-size: 14px;
   cursor: pointer;
 }
 .wallet-picker-item:hover {
-  border-color: var(--accent-blue, #3b82f6);
+  border-color: var(--accent-cyan);
 }
 .wallet-picker-icon {
   width: 22px;
@@ -1098,10 +1056,10 @@ body {
   border-radius: 8px;
   border: none;
   background: transparent;
-  color: var(--text-tertiary, #8b949e);
+  color: var(--text-tertiary);
   cursor: pointer;
   font-size: 13px;
 }
 .wallet-picker-cancel:hover {
-  color: var(--text-primary, #e6edf3);
+  color: var(--text-primary);
 }
