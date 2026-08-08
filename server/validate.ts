@@ -1,7 +1,8 @@
 import { Router } from "express";
 import { checkOutcome, giveFeedback } from "../lib/validator-agent.js";
-import { computeStats, recordResolution } from "../lib/history.js";
+import { recordResolution } from "../lib/history.js";
 import { refundUser } from "../scripts/refund-user.js";
+import { getOnchainTrackRecord } from "../lib/stats-onchain.js";
 
 export const validateRouter = Router();
 
@@ -75,11 +76,20 @@ validateRouter.post("/validate", async (req, res) => {
   }
 });
 
-// Honest track record: total predictions, resolved count, overall
-// win-rate, per-duration win-rates, and win-rate per confidence bucket.
-validateRouter.get("/stats", (_req, res) => {
+// Honest track record, read directly from the onchain ERC-8004 reputation
+// (ReputationRegistry view functions — no file storage, which doesn't
+// survive on Vercel). Total = validated predictions, resolved = total
+// (feedback is only written after a market resolves), accuracy = correct/total.
+validateRouter.get("/stats", async (_req, res) => {
   try {
-    res.json(computeStats());
+    const r = await getOnchainTrackRecord();
+    res.json({
+      total: r.total,
+      resolved: r.resolved,
+      overallWinRate: r.accuracy,
+      byDuration: {},
+      byBucket: [],
+    });
   } catch (err) {
     res.status(500).json({
       error: err instanceof Error ? err.message : String(err),

@@ -997,7 +997,9 @@ export function App() {
                 <span className="stat-label">predictions</span>
               </div>
               <div className="stat-cell">
-                <span className="stat-value">{stats.resolved}</span>
+                <span className="stat-value">
+                  {stats.total > 0 ? `${stats.resolved}/${stats.total}` : "—"}
+                </span>
                 <span className="stat-label">resolved</span>
               </div>
               <div className="stat-cell">
@@ -1010,7 +1012,8 @@ export function App() {
               </div>
             </div>
 
-            {stats.resolved > 0 && (
+            {stats.total > 0 &&
+              (Object.keys(stats.byDuration).length > 0 || stats.byBucket.length > 0) && (
               <>
                 <h3>By duration</h3>
                 <table className="stats-table">
@@ -1066,7 +1069,7 @@ export function App() {
       </section>
 
       <footer className="footer">
-        Powered by Polymarket &middot; Arc Network &middot; Circle Nanopayments
+        Built on Arc
       </footer>
     </div>
   );
