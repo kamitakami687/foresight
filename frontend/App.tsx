@@ -694,6 +694,31 @@ export function App() {
 
   return (
     <div className="app">
+      {/* Moving-averages background: generated inline SVG, palette-only colors. */}
+      <div className="bg-chart" aria-hidden="true">
+        <svg viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice">
+          <defs>
+            <linearGradient id="bg-fade" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#0b1e33" />
+              <stop offset="100%" stopColor="#000000" />
+            </linearGradient>
+          </defs>
+          <rect width="1440" height="900" fill="url(#bg-fade)" />
+          <path
+            className="ma-line ma-cyan"
+            d="M0,620 C100,600 180,650 280,610 C380,570 460,590 560,555 C660,520 740,545 840,520 C940,495 1020,520 1120,500 C1220,480 1300,500 1440,490"
+          />
+          <path
+            className="ma-line ma-sky"
+            d="M0,570 C110,555 200,595 310,565 C420,535 500,555 610,530 C720,505 800,525 910,505 C1020,485 1100,500 1210,485 C1320,470 1380,480 1440,475"
+          />
+          <path
+            className="ma-line ma-gold"
+            d="M0,680 C120,665 230,690 350,660 C470,630 570,650 690,625 C810,600 900,620 1020,600 C1140,580 1230,595 1350,580 C1400,575 1420,570 1440,565"
+          />
+        </svg>
+      </div>
+
       <header className="header">
         <div className="header-left">
           <img src={eyeUrl} alt="Foresight" className="header-logo" />
@@ -713,11 +738,12 @@ export function App() {
             </button>
           ) : (
             <div className="wallet-group">
-              {usdcBalance && <span className="wallet-usdc">USDC {usdcBalance}</span>}
-              <span className="wallet-address">{shortenAddress(address!)}</span>
-              <button className="btn btn-ghost btn-sm" onClick={() => disconnect()}>
-                Disconnect
-              </button>
+              <div className="wallet-capsule" title="Connected wallet">
+                {usdcBalance && (
+                  <span className="wallet-capsule-balance">USDC {usdcBalance}</span>
+                )}
+                <span className="wallet-capsule-address">{shortenAddress(address!)}</span>
+              </div>
               <span
                 className={`chain-badge ${
                   chainId === arcChain.id ? "chain-badge-ok" : "chain-badge-warn"
@@ -730,6 +756,26 @@ export function App() {
                     ? `Chain ${chainId}`
                     : "Chain …"}
               </span>
+              <button
+                className="wallet-disconnect"
+                onClick={() => disconnect()}
+                title="Disconnect"
+                aria-label="Disconnect"
+              >
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M18.36 6.64a9 9 0 1 1-12.73 0" />
+                  <line x1="12" y1="2" x2="12" y2="12" />
+                </svg>
+              </button>
             </div>
           )}
         </div>

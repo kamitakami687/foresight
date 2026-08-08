@@ -681,12 +681,129 @@ body {
 
 /* Gold labels / headings / footer, bright-blue timeframe titles. */
 .market-label,
-.deposit-label,
-.balance-label,
 .stats-panel h2,
 .stat-label,
 .footer {
   color: var(--gold);
+}
+
+/* Bright-cyan accents: stat numbers, tagline, Gateway heading. */
+.stat-value,
+.logo-sub,
+.deposit-section-title {
+  color: var(--accent-cyan);
+}
+
+/* AMOUNT / GATEWAY BALANCE labels back to white. */
+.deposit-label,
+.balance-label {
+  color: var(--text-primary);
+}
+
+/* Wallet capsule: one element with balance + address, like the Arc refs. */
+.wallet-capsule {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  padding: 0.35rem 0.9rem;
+  font-family: "JetBrains Mono", monospace;
+  white-space: nowrap;
+}
+
+.wallet-capsule-balance {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--accent-cyan);
+}
+
+.wallet-capsule-address {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.wallet-disconnect {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-tertiary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.wallet-disconnect:hover {
+  color: var(--accent-red);
+  border-color: var(--accent-red);
+}
+
+/* Moving-averages background: generated SVG, behind all content. */
+.bg-chart {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.bg-chart svg {
+  width: 100%;
+  height: 100%;
+}
+
+.ma-line {
+  fill: none;
+  stroke-width: 1.2;
+  opacity: 0.08;
+}
+
+.ma-cyan {
+  stroke: #22d3ee;
+  filter: drop-shadow(0 0 6px rgba(34, 211, 238, 0.25));
+}
+
+.ma-sky {
+  stroke: #5b9bd5;
+  filter: drop-shadow(0 0 6px rgba(91, 155, 213, 0.25));
+}
+
+.ma-gold {
+  stroke: #e8d5a3;
+  filter: drop-shadow(0 0 6px rgba(232, 213, 163, 0.25));
+}
+
+/* Slow horizontal drift (45s cycle) — GPU transform only. */
+.ma-line {
+  animation: maDrift 45s ease-in-out infinite alternate;
+}
+
+.ma-line:nth-child(2) {
+  animation-delay: -15s;
+}
+
+.ma-line:nth-child(3) {
+  animation-delay: -30s;
+}
+
+@keyframes maDrift {
+  from {
+    transform: translateX(-16px);
+  }
+  to {
+    transform: translateX(16px);
+  }
+}
+
+/* Keep content above the background layer. */
+.app > :not(.bg-chart) {
+  position: relative;
+  z-index: 1;
 }
 
 .prediction-card-title {
