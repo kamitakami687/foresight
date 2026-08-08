@@ -88,7 +88,8 @@ body {
   justify-content: space-between;
   padding: var(--space-md) var(--space-xl);
   border-bottom: 1px solid var(--border-subtle);
-  background: var(--bg-secondary);
+  background: rgba(17, 19, 24, 0.82);
+  backdrop-filter: blur(4px);
 }
 
 .header-left {
@@ -673,6 +674,12 @@ body {
   color: var(--gold);
 }
 
+.nav-link-active {
+  color: var(--gold);
+  border-bottom: 2px solid var(--gold-deep);
+  padding-bottom: 0.15rem;
+}
+
 .wallet-group {
   display: flex;
   align-items: center;
@@ -778,6 +785,11 @@ body {
   filter: drop-shadow(0 0 6px rgba(232, 213, 163, 0.25));
 }
 
+.ma-white {
+  stroke: #ffffff;
+  filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.2));
+}
+
 /* Slow horizontal drift (45s cycle) — GPU transform only. */
 .ma-line {
   animation: maDrift 45s ease-in-out infinite alternate;
@@ -800,6 +812,12 @@ body {
   }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .ma-line {
+    animation: none;
+  }
+}
+
 /* Keep content above the background layer. */
 .app > :not(.bg-chart) {
   position: relative;
@@ -814,116 +832,64 @@ body {
   margin-top: 14px;
 }
 
-/* Network badge — exactly the Gateway balance value color (cyan). */
-.chain-badge-ok {
-  color: var(--accent-cyan);
-  border-color: rgba(34, 211, 238, 0.4);
-  background: rgba(34, 211, 238, 0.12);
+/* ===== Info pages (About / How It Works / Faucet) ===== */
+.info-page {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: var(--space-xl) var(--space-md);
 }
 
-/* Generic modal (About / How It Works / Faucet). */
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.55);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 100;
-  padding: 20px;
-}
-
-.modal {
-  background: var(--card-bg, #161b22);
-  border: 1px solid var(--border, #30363d);
-  border-radius: 12px;
-  padding: 22px;
-  max-width: 560px;
-  width: 100%;
-  max-height: 85vh;
-  overflow-y: auto;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
-  color: var(--text-primary);
-}
-
-.modal h3 {
-  margin: 0 0 12px;
+.info-page h2 {
+  margin: 0 0 14px;
   color: var(--gold);
-  font-size: 1rem;
+  font-size: 1.1rem;
   letter-spacing: 0.05em;
   text-transform: uppercase;
 }
 
-.modal h3:not(:first-child) {
-  margin-top: 18px;
+.info-page h2:not(:first-child) {
+  margin-top: 26px;
 }
 
-.modal p {
-  margin: 0 0 12px;
-  font-size: 0.88rem;
+.info-page p {
+  margin: 0 0 14px;
+  font-size: 0.92rem;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+.info-page ol {
+  margin: 0 0 14px;
+  padding-left: 22px;
+}
+
+.info-page li {
+  margin-bottom: 8px;
+  font-size: 0.92rem;
   line-height: 1.55;
   color: var(--text-secondary);
 }
 
-.modal ol {
-  margin: 0 0 12px;
-  padding-left: 20px;
-}
-
-.modal li {
-  margin-bottom: 6px;
-  font-size: 0.88rem;
-  line-height: 1.5;
-  color: var(--text-secondary);
-}
-
-.modal-highlights {
+.info-highlights {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
-  margin: 12px 0;
+  margin: 16px 0;
 }
 
-.modal-highlight {
+.info-highlight {
   background: var(--bg-card);
   border: 1px solid var(--border-subtle);
   border-radius: 8px;
   padding: 10px 12px;
-  font-size: 0.82rem;
+  font-size: 0.84rem;
   line-height: 1.4;
   color: var(--text-secondary);
 }
 
-.modal-small {
-  font-size: 0.75rem;
-  color: var(--text-tertiary);
-}
-
-.modal-close {
-  display: block;
-  width: 100%;
-  margin-top: 16px;
-  padding: 0.5rem;
-  background: none;
-  border: 1px solid var(--border-medium);
-  border-radius: var(--radius-sm);
-  color: var(--text-secondary);
-  font-family: inherit;
-  font-size: 0.85rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.modal-close:hover {
-  color: var(--text-primary);
-  border-color: var(--sky);
-}
-
-.modal a.btn-connect {
-  display: inline-block;
-  text-decoration: none;
-  margin-bottom: 4px;
+.info-note {
+  font-size: 0.8rem;
+  color: var(--accent-cyan);
 }
 
 /* ===== Animations ===== */
@@ -1059,9 +1025,9 @@ body {
   white-space: nowrap;
 }
 .chain-badge-ok {
-  color: var(--accent-green);
-  border-color: rgba(34, 197, 94, 0.4);
-  background: var(--accent-green-dim);
+  color: var(--accent-cyan);
+  border-color: rgba(34, 211, 238, 0.4);
+  background: rgba(34, 211, 238, 0.12);
 }
 .chain-badge-warn {
   color: var(--accent-amber);

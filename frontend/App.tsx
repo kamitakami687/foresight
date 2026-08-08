@@ -203,8 +203,8 @@ export function App() {
   const [chainHint, setChainHint] = useState<string | null>(null);
   // Wallet chooser (EIP-6963): open when several wallets are installed.
   const [walletPickerOpen, setWalletPickerOpen] = useState(false);
-  // Info modals: About / How It Works / Faucet.
-  const [modal, setModal] = useState<null | "about" | "how" | "faucet">(null);
+  // Page view: only one section renders at a time; header/footer persist.
+  const [view, setView] = useState<"home" | "about" | "how" | "faucet">("home");
 
   // Diagnostic: dump every discovered wallet at page load AND whenever
   // EIP-6963 discovery adds a new one — proves the list is dynamic.
@@ -705,16 +705,20 @@ export function App() {
           </defs>
           <rect width="1440" height="900" fill="url(#bg-fade)" />
           <path
+            className="ma-line ma-white"
+            d="M0,350 C110,335 210,370 320,345 C430,320 520,345 630,325 C740,305 830,325 940,310 C1050,295 1140,315 1240,305 C1340,295 1400,305 1440,300"
+          />
+          <path
             className="ma-line ma-cyan"
-            d="M0,620 C100,600 180,650 280,610 C380,570 460,590 560,555 C660,520 740,545 840,520 C940,495 1020,520 1120,500 C1220,480 1300,500 1440,490"
+            d="M0,520 C100,500 180,550 280,510 C380,470 460,490 560,455 C660,420 740,445 840,420 C940,395 1020,420 1120,400 C1220,380 1300,400 1440,390"
           />
           <path
             className="ma-line ma-sky"
-            d="M0,570 C110,555 200,595 310,565 C420,535 500,555 610,530 C720,505 800,525 910,505 C1020,485 1100,500 1210,485 C1320,470 1380,480 1440,475"
+            d="M0,470 C110,455 200,495 310,465 C420,435 500,455 610,430 C720,405 800,425 910,405 C1020,385 1100,400 1210,385 C1320,370 1380,380 1440,375"
           />
           <path
             className="ma-line ma-gold"
-            d="M0,680 C120,665 230,690 350,660 C470,630 570,650 690,625 C810,600 900,620 1020,600 C1140,580 1230,595 1350,580 C1400,575 1420,570 1440,565"
+            d="M0,580 C120,565 230,590 350,560 C470,530 570,550 690,525 C810,500 900,520 1020,500 C1140,480 1230,495 1350,480 C1400,475 1420,470 1440,465"
           />
         </svg>
       </div>
@@ -725,9 +729,30 @@ export function App() {
           <span className="logo">Foresight</span>
           <span className="logo-sub">AI Prediction Markets</span>
           <nav className="header-nav">
-            <button className="nav-link" onClick={() => setModal("about")}>About</button>
-            <button className="nav-link" onClick={() => setModal("how")}>How It Works</button>
-            <button className="nav-link" onClick={() => setModal("faucet")}>Faucet</button>
+            <button
+              className={`nav-link ${view === "home" ? "nav-link-active" : ""}`}
+              onClick={() => setView("home")}
+            >
+              Home
+            </button>
+            <button
+              className={`nav-link ${view === "about" ? "nav-link-active" : ""}`}
+              onClick={() => setView("about")}
+            >
+              About
+            </button>
+            <button
+              className={`nav-link ${view === "how" ? "nav-link-active" : ""}`}
+              onClick={() => setView("how")}
+            >
+              How It Works
+            </button>
+            <button
+              className={`nav-link ${view === "faucet" ? "nav-link-active" : ""}`}
+              onClick={() => setView("faucet")}
+            >
+              Faucet
+            </button>
           </nav>
         </div>
 
@@ -818,129 +843,127 @@ export function App() {
         </div>
       )}
 
-      {modal && (
-        <div className="modal-overlay" onClick={() => setModal(null)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            {modal === "about" && (
-              <>
-                <h3>About</h3>
-                <p>
-                  Foresight is a live prediction app built on Arc Testnet. It
-                  currently supports 5 min, 15 min, 1 hour and 4 hour
-                  predictions for BTC and ETH.
-                </p>
-                <p>
-                  Ask a question like "Bitcoin up or down?" or paste a
-                  Polymarket link, pick a timeframe, and pay $0.01. The
-                  Prediction agent pulls live Binance candlestick data and the
-                  Polymarket order book, and returns a directional call with a
-                  confidence level and its reasoning.
-                </p>
-                <p>
-                  Two agents run the loop. The agent has a real onchain
-                  identity registered under ERC-8004 on Arc Testnet. Once the
-                  market resolves and you press Check outcome, the Validator
-                  agent checks whether the call was right. The Reporter then
-                  writes the result to the ERC-8004 ReputationRegistry, and
-                  sends an automatic 90% refund (0.009 USDC) if the prediction
-                  was wrong.
-                </p>
-                <p>
-                  Payments run on USDC through Circle Nanopayments, instant and
-                  gas free, with USDC as the native gas token on Arc.
-                </p>
-                <p>
-                  Every checked prediction gets a permanent onchain log entry,
-                  correct calls and wrong calls alike.
-                </p>
-                <h3>How the track record works</h3>
-                <p>
-                  Foresight's track record is not stored on our servers. It is
-                  read directly from the agent's ERC-8004 reputation on Arc, so
-                  it cannot be edited, reset, or lost when the app redeploys.
-                </p>
-                <p>
-                  A prediction only enters the track record after you press
-                  Check outcome and the result is written on chain. That is why
-                  resolved always equals predictions: only resolved predictions
-                  are recorded. Refresh the page to see updated numbers.
-                </p>
-                <div className="modal-highlights">
-                  <div className="modal-highlight">
-                    Gasless USDC payments via Circle Nanopayments
-                  </div>
-                  <div className="modal-highlight">
-                    Onchain agent identity and reputation via ERC-8004
-                  </div>
-                  <div className="modal-highlight">
-                    Live data from Binance and the Polymarket order book
-                  </div>
-                  <div className="modal-highlight">
-                    Automatic 90% refund on wrong predictions
-                  </div>
-                </div>
-                <p className="modal-small">
-                  Built on Arc Testnet. More supported assets planned.
-                </p>
-              </>
-            )}
-            {modal === "how" && (
-              <>
-                <h3>How It Works</h3>
-                <ol>
-                  <li>Connect your browser wallet.</li>
-                  <li>Deposit USDC to the Gateway.</li>
-                  <li>
-                    Paste a Polymarket link, or type a question like "Bitcoin
-                    up or down?".
-                  </li>
-                  <li>
-                    Press a timeframe: 5 min, 15 min, 1 hr or 4 hr.
-                  </li>
-                  <li>
-                    Pay $0.01. The agent analyses live market data and returns
-                    a prediction with its reasoning.
-                  </li>
-                  <li>
-                    Wait for the timer to expire. The Check outcome button
-                    then appears.
-                  </li>
-                  <li>
-                    Press Check outcome. The Validator agent checks whether the
-                    prediction was right.
-                  </li>
-                  <li>
-                    If it was wrong, you automatically get 90% back (0.009
-                    USDC).
-                  </li>
-                  <li>
-                    Every validated prediction, right or wrong, gets a
-                    permanent onchain log entry.
-                  </li>
-                </ol>
-              </>
-            )}
-            {modal === "faucet" && (
-              <>
-                <h3>Faucet</h3>
-                <p>You need testnet USDC to use Foresight</p>
-                <a
-                  className="btn btn-connect"
-                  href="https://faucet.circle.com/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  CLAIM TESTNET USDC
-                </a>
-              </>
-            )}
-            <button className="modal-close" onClick={() => setModal(null)}>
-              Close
-            </button>
+      {view === "about" && (
+        <main className="main">
+          <div className="info-page">
+            <h2>About</h2>
+            <p>
+              Foresight is a live prediction app built on Arc Testnet. It
+              currently supports 5 min, 15 min, 1 hour and 4 hour predictions
+              for BTC and ETH.
+            </p>
+            <p>
+              Ask a question like "Bitcoin up or down?" or paste a Polymarket
+              link, pick a timeframe, and pay $0.01. The Prediction agent pulls
+              live Binance candlestick data and the Polymarket order book, and
+              returns a directional call with a confidence level and its
+              reasoning.
+            </p>
+            <p>
+              Three agents handle the cycle. The Prediction agent holds a real
+              onchain identity registered under ERC-8004 on Arc Testnet, and
+              produces the forecast. Once the market resolves and you press
+              Check outcome, the Validator agent compares the forecast against
+              what actually happened. The Reporter agent then writes that
+              verdict to the ERC-8004 ReputationRegistry and, when the forecast
+              was wrong, sends an automatic 90% refund of 0.009 USDC.
+            </p>
+            <p>
+              Instant payments run on USDC through Circle Nanopayments, with
+              USDC as the native gas token on Arc.
+            </p>
+            <p>
+              Every verified prediction gets a permanent onchain log entry,
+              correct and incorrect alike.
+            </p>
+            <h2>How the track record works</h2>
+            <p>
+              Foresight's track record is not stored on our servers. It is read
+              directly from the agent's ERC-8004 reputation on Arc, so it
+              cannot be edited, reset, or lost when the app redeploys.
+            </p>
+            <p>
+              A prediction only enters the track record after you press Check
+              outcome and the result is written on chain. That is why resolved
+              always equals predictions: only resolved predictions are
+              recorded. Refresh the page to see updated numbers.
+            </p>
+            <div className="info-highlights">
+              <div className="info-highlight">
+                Gasless USDC payments via Circle Nanopayments
+              </div>
+              <div className="info-highlight">
+                Onchain agent identity and reputation via ERC-8004
+              </div>
+              <div className="info-highlight">
+                Live data from Binance and the Polymarket order book
+              </div>
+              <div className="info-highlight">
+                Automatic 90% refund on wrong predictions
+              </div>
+            </div>
+            <p className="info-note">
+              Built on Arc Testnet. More supported assets planned.
+            </p>
           </div>
-        </div>
+        </main>
       )}
 
+      {view === "how" && (
+        <main className="main">
+          <div className="info-page">
+            <h2>How It Works</h2>
+            <ol>
+              <li>Connect your browser wallet.</li>
+              <li>Deposit USDC to the Gateway.</li>
+              <li>
+                Paste a Polymarket link, or type a question like "Bitcoin up or
+                down?".
+              </li>
+              <li>Press a timeframe: 5 min, 15 min, 1 hr or 4 hr.</li>
+              <li>
+                Pay $0.01. The agent analyses live market data and returns a
+                prediction with its reasoning.
+              </li>
+              <li>
+                Wait for the timer to expire. The Check outcome button then
+                appears.
+              </li>
+              <li>
+                Press Check outcome. The Validator agent checks whether the
+                prediction was right.
+              </li>
+              <li>
+                If it was wrong, you automatically get 90% back (0.009 USDC).
+              </li>
+              <li>
+                Every validated prediction, right or wrong, gets a permanent
+                onchain log entry.
+              </li>
+            </ol>
+          </div>
+        </main>
+      )}
+
+      {view === "faucet" && (
+        <main className="main">
+          <div className="info-page">
+            <h2>Faucet</h2>
+            <p>You need testnet USDC to use Foresight</p>
+            <a
+              className="btn btn-connect"
+              href="https://faucet.circle.com/"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              CLAIM TESTNET USDC
+            </a>
+          </div>
+        </main>
+      )}
+
+      {view === "home" && (
+        <>
       <main className="main">
         {/* Market Input */}
         <section className="market-section">
@@ -1244,6 +1267,8 @@ export function App() {
           </>
         )}
       </section>
+        </>
+      )}
 
       <footer className="footer">
         Built on Arc Testnet
