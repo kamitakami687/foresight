@@ -1,6 +1,6 @@
 # Foresight
 
-![Foresight logo](logo.jpg)
+![Foresight logo](foresight-logo.png)
 
 Website: https://foresight-predict.vercel.app/
 
@@ -77,8 +77,9 @@ foresight/
 │   ├── arc.ts                 # Arc network config: chain ID, RPC, USDC address
 │   ├── gateway-deposit.ts     # Gateway balance deposit helpers (frontend-facing)
 │   ├── gateway-signer.ts      # EIP-712 signing for gasless x402 payments
-│   ├── history.ts             # Calibration history store + win-rate stats (/stats)
+│   ├── history.ts             # Best-effort local history (not used for /stats on Vercel)
 │   ├── polymarket.ts          # Fetches market data from Polymarket's Gamma API + CLOB
+│   ├── stats-onchain.ts       # /stats: reads ERC-8004 reputation via view functions (onchain)
 │   └── validator-agent.ts     # Checks a resolved market's outcome, decides match/refund
 ├── server/
 │   ├── index.ts               # Express app entry point, mounts all routes
@@ -134,7 +135,7 @@ Foresight deploys as two separate Vercel projects from one repository: the front
 
 - `vite.config.ts` builds into `dist/` (Vite's default). The earlier setup pointed `build.outDir` at `public/`, which made Vercel's static collection non-deterministic — empty builds on some deploys, a race between Vite's output and the static builder on others. `dist/` keeps the two apart.
 - `typescript` is pinned to `6.0.3`. TypeScript 7's native compiler doesn't expose `ts.sys` the way `@vercel/node`'s tooling expects, so the backend build breaks on TS7.
-- The Circle SDK (`@circle-fin/developer-controlled-wallets`) is imported dynamically (`await import(...)` inside the functions that need it). A top-level static named import crashes module load under Vercel's native ESM loader — the CJS interop layer can't synthesize named exports for this package.
+- The Circle SDK (`@circle-fin/developer-controlled-wallets`) is loaded lazily with `createRequire(import.meta.url)` + `require()`, which resolves to the package's CJS build (`dist/*.cjs.js`). Vercel's Node runtime cannot load the package's ESM build (`dist/*.es.js` — the package has no `"type": "module"` and `.es.js` is not a recognized ESM extension there), so a dynamic `import()` crashed `/validate` with "Cannot use import statement outside a module". Loading lazily also means a Circle-side failure only breaks the function that uses it, never the whole server module.
 - `package.json` overrides `uuid` to `^11.1.1`. `@circle-fin/app-kit` unconditionally requires `@solana/web3.js`, which pulls in `rpc-websockets`, which `require()`s `uuid` — and uuid 14 dropped CommonJS entirely.
 - The wallet layer doesn't use wagmi. Wallets are discovered through raw EIP-6963 `announceProvider` events, connected with a direct `eth_requestAccounts`, and switched to Arc with `wallet_switchEthereumChain` (falling back to `wallet_addEthereumChain` on 4902) — all on the chosen wallet's own provider object, with viem clients created directly. wagmi's connector/client wrappers silently blocked the network switch in real wallets; the raw-provider path is how working Arc dApps (AnchorPay, ArcShift) do it.
 - Arc Testnet parameters: chain ID 5042002, RPC `https://rpc.testnet.arc.io` (fallback `https://rpc.testnet.arc.network`), USDC as the native gas token with 18 decimals, explorer `testnet.arcscan.app`.
@@ -154,8 +155,16 @@ Foresight deploys as two separate Vercel projects from one repository: the front
 View the Validator's identity onchain:
 https://testnet.arcscan.app/token/0x8004A818BFB912233c491871b3d84c89A494BD9e/instance/851687
 
-View the Reporter's transaction history:
-https://testnet.arcscan.app/address/0xa75dbd9e467edd520381b8eecb75ef78f0c1f0ea
+View a verified onchain reputation write (a NewFeedback transaction from the Reporter):
+https://testnet.arcscan.app/tx/0x3b2ca029cbc2898b5b13b2ebec1978734e3c8c94b09dddbced65d91720103c38
+
+---
+
+## Onchain track record
+
+Foresight's track record is not stored on any server. The stats panel reads it directly from the agent's ERC-8004 reputation on Arc through ReputationRegistry view functions (`getClients` + `getSummary`) — a couple of `eth_call`s, no log scanning, no files, nothing to edit, reset, or lose when the app redeploys.
+
+A prediction enters the track record only after you press **Check outcome** and the result is written on chain (a `NewFeedback` event; value 100 = correct, 20 = incorrect). That is why **resolved always equals predictions**: only resolved predictions are recorded. Every checked prediction, right or wrong, gets a permanent onchain log entry.
 
 ---
 
@@ -210,8 +219,6 @@ npm run dev      # starts the Vite frontend on :5173
 ---
 
 ## Manual testing
-
-## *The online version is in progress
 
 A judge or reviewer can verify the whole flow themselves, end to end:
 

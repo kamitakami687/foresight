@@ -10,6 +10,7 @@ import {
   getUsdcBalance,
   queryGatewayBalance,
 } from "../lib/gateway-deposit.js";
+import eyeUrl from "./foresight-eye-transparent.png";
 
 // Minimal EIP-1193 shape for the legacy window.ethereum fallback (the
 // EIP-6963 store above is the primary source; window.ethereum is only used
@@ -202,6 +203,8 @@ export function App() {
   const [chainHint, setChainHint] = useState<string | null>(null);
   // Wallet chooser (EIP-6963): open when several wallets are installed.
   const [walletPickerOpen, setWalletPickerOpen] = useState(false);
+  // Info modals: About / How It Works / Faucet.
+  const [modal, setModal] = useState<null | "about" | "how" | "faucet">(null);
 
   // Diagnostic: dump every discovered wallet at page load AND whenever
   // EIP-6963 discovery adds a new one — proves the list is dynamic.
@@ -693,38 +696,43 @@ export function App() {
     <div className="app">
       <header className="header">
         <div className="header-left">
+          <img src={eyeUrl} alt="Foresight" className="header-logo" />
           <span className="logo">Foresight</span>
           <span className="logo-sub">AI Prediction Markets</span>
+          <nav className="header-nav">
+            <button className="nav-link" onClick={() => setModal("about")}>About</button>
+            <button className="nav-link" onClick={() => setModal("how")}>How It Works</button>
+            <button className="nav-link" onClick={() => setModal("faucet")}>Faucet</button>
+          </nav>
         </div>
 
-        {!isConnected ? (
-          <button className="btn-connect" onClick={handleConnectClick}>
-            Connect Wallet
-          </button>
-        ) : (
-          <>
-            <div className="wallet-badge">
-              <span className="wallet-dot" />
-              <span className="wallet-address">{shortenAddress(address!)}</span>
+        <div className="header-right">
+          {!isConnected ? (
+            <button className="btn-connect" onClick={handleConnectClick}>
+              Connect Wallet
+            </button>
+          ) : (
+            <div className="wallet-group">
               {usdcBalance && <span className="wallet-usdc">USDC {usdcBalance}</span>}
+              <span className="wallet-address">{shortenAddress(address!)}</span>
               <button className="btn btn-ghost btn-sm" onClick={() => disconnect()}>
                 Disconnect
               </button>
+              <span
+                className={`chain-badge ${
+                  chainId === arcChain.id ? "chain-badge-ok" : "chain-badge-warn"
+                }`}
+                title={`Wallet chain: ${chainId ?? "unknown"}`}
+              >
+                {chainId === arcChain.id
+                  ? "Arc Testnet"
+                  : chainId
+                    ? `Chain ${chainId}`
+                    : "Chain …"}
+              </span>
             </div>
-            <span
-              className={`chain-badge ${
-                chainId === arcChain.id ? "chain-badge-ok" : "chain-badge-warn"
-              }`}
-              title={`Wallet chain: ${chainId ?? "unknown"}`}
-            >
-              {chainId === arcChain.id
-                ? "Arc Testnet"
-                : chainId
-                  ? `Chain ${chainId}`
-                  : "Chain …"}
-            </span>
-          </>
-        )}
+          )}
+        </div>
       </header>
 
       {chainHint && (
@@ -764,6 +772,129 @@ export function App() {
         </div>
       )}
 
+      {modal && (
+        <div className="modal-overlay" onClick={() => setModal(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            {modal === "about" && (
+              <>
+                <h3>About</h3>
+                <p>
+                  Foresight is a live prediction app built on Arc Testnet. It
+                  currently supports 5 min, 15 min, 1 hour and 4 hour
+                  predictions for BTC and ETH.
+                </p>
+                <p>
+                  Ask a question like "Bitcoin up or down?" or paste a
+                  Polymarket link, pick a timeframe, and pay $0.01. The
+                  Prediction agent pulls live Binance candlestick data and the
+                  Polymarket order book, and returns a directional call with a
+                  confidence level and its reasoning.
+                </p>
+                <p>
+                  Two agents run the loop. The agent has a real onchain
+                  identity registered under ERC-8004 on Arc Testnet. Once the
+                  market resolves and you press Check outcome, the Validator
+                  agent checks whether the call was right. The Reporter then
+                  writes the result to the ERC-8004 ReputationRegistry, and
+                  sends an automatic 90% refund (0.009 USDC) if the prediction
+                  was wrong.
+                </p>
+                <p>
+                  Payments run on USDC through Circle Nanopayments, instant and
+                  gas free, with USDC as the native gas token on Arc.
+                </p>
+                <p>
+                  Every checked prediction gets a permanent onchain log entry,
+                  correct calls and wrong calls alike.
+                </p>
+                <h3>How the track record works</h3>
+                <p>
+                  Foresight's track record is not stored on our servers. It is
+                  read directly from the agent's ERC-8004 reputation on Arc, so
+                  it cannot be edited, reset, or lost when the app redeploys.
+                </p>
+                <p>
+                  A prediction only enters the track record after you press
+                  Check outcome and the result is written on chain. That is why
+                  resolved always equals predictions: only resolved predictions
+                  are recorded. Refresh the page to see updated numbers.
+                </p>
+                <div className="modal-highlights">
+                  <div className="modal-highlight">
+                    Gasless USDC payments via Circle Nanopayments
+                  </div>
+                  <div className="modal-highlight">
+                    Onchain agent identity and reputation via ERC-8004
+                  </div>
+                  <div className="modal-highlight">
+                    Live data from Binance and the Polymarket order book
+                  </div>
+                  <div className="modal-highlight">
+                    Automatic 90% refund on wrong predictions
+                  </div>
+                </div>
+                <p className="modal-small">
+                  Built on Arc Testnet. More supported assets planned.
+                </p>
+              </>
+            )}
+            {modal === "how" && (
+              <>
+                <h3>How It Works</h3>
+                <ol>
+                  <li>Connect your browser wallet.</li>
+                  <li>Deposit USDC to the Gateway.</li>
+                  <li>
+                    Paste a Polymarket link, or type a question like "Bitcoin
+                    up or down?".
+                  </li>
+                  <li>
+                    Press a timeframe: 5 min, 15 min, 1 hr or 4 hr.
+                  </li>
+                  <li>
+                    Pay $0.01. The agent analyses live market data and returns
+                    a prediction with its reasoning.
+                  </li>
+                  <li>
+                    Wait for the timer to expire. The Check outcome button
+                    then appears.
+                  </li>
+                  <li>
+                    Press Check outcome. The Validator agent checks whether the
+                    prediction was right.
+                  </li>
+                  <li>
+                    If it was wrong, you automatically get 90% back (0.009
+                    USDC).
+                  </li>
+                  <li>
+                    Every validated prediction, right or wrong, gets a
+                    permanent onchain log entry.
+                  </li>
+                </ol>
+              </>
+            )}
+            {modal === "faucet" && (
+              <>
+                <h3>Faucet</h3>
+                <p>You need testnet USDC to use Foresight</p>
+                <a
+                  className="btn btn-connect"
+                  href="https://faucet.circle.com/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  CLAIM TESTNET USDC
+                </a>
+              </>
+            )}
+            <button className="modal-close" onClick={() => setModal(null)}>
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+
       <main className="main">
         {/* Market Input */}
         <section className="market-section">
@@ -774,7 +905,7 @@ export function App() {
               className="market-input"
               value={marketInput}
               onChange={(e) => setMarketInput(e.target.value)}
-              placeholder="Paste a Polymarket URL, e.g. bitcoin-up-or-down-july-16-2026-11pm-et"
+              placeholder="Enter your question or market URL to begin"
             />
           </div>
         </section>
@@ -1069,7 +1200,7 @@ export function App() {
       </section>
 
       <footer className="footer">
-        Built on Arc
+        Built on Arc Testnet
       </footer>
     </div>
   );
