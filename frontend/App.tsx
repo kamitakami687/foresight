@@ -860,13 +860,14 @@ export function App() {
               reasoning.
             </p>
             <p>
-              Three agents handle the cycle. The Prediction agent holds a real
-              onchain identity registered under ERC-8004 on Arc Testnet, and
-              produces the forecast. Once the market resolves and you press
-              Check outcome, the Validator agent compares the forecast against
-              what actually happened. The Reporter agent then writes that
-              verdict to the ERC-8004 ReputationRegistry and, when the forecast
-              was wrong, sends an automatic 90% refund of 0.009 USDC.
+              Three agents handle the cycle. The agent holds a real onchain
+              identity registered under ERC-8004 on Arc Testnet. The
+              Prediction agent produces the forecast; once the market resolves
+              and you press Check outcome, the Validator agent compares the
+              forecast against what actually happened. The Reporter agent then
+              writes that verdict to the ERC-8004 ReputationRegistry and, when
+              the forecast was wrong, sends an automatic 90% refund of 0.009
+              USDC.
             </p>
             <p>
               Instant payments run on USDC through Circle Nanopayments, with
